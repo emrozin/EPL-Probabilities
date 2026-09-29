@@ -38,15 +38,8 @@ Data:
 
 Source	               |      Coverage	           |       Contents
 -----------------------|---------------------------|----------------------------------
-football-data.co.uk    |	    1993/94 onward	     |    Results, half-time scores, 
-                       |                           |    match stats (from 2000/01) 
-                       |                           |    ,1X2 / over-under / Asian 
-                       |                           |    handicap odds from 20+ 
-                       |                           |    bookmakers, pre-match 
-                       |                           |    and closing.
-                       |                           |      
-Understat	             |      2014/15 onward	     |    Expected goals (xG) per 
-                       |                           |    team per match
+football-data.co.uk    |	    1993/94 onward	     |    Results, half-time scores, match stats (from 2000/01), 1X2 / over-under / Asian handicap odds from 20+ bookmakers, pre-match and closing.
+Understat	             |      2014/15 onward	     |    Expected goals (xG) per team per match
 
 The database currently holds 13,000+ matches. Some data-quality work involved:
 
