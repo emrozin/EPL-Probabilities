@@ -110,17 +110,17 @@ strong and weak teams, which team-specific ratings already account for.
 
 Project structure: 
 
-import_epl.py         Imports football-data.co.uk results, stats and odds (cached, safe to re-run)
+import_epl.py         # Imports football-data.co.uk results, stats and odds (cached, safe to re-run)
 
-import_understat.py   Imports Understat xG and links it to existing matches
+import_understat.py   # Imports Understat xG and links it to existing matches
 
-schema.sql            Database schema, designed to support more leagues and sports
+schema.sql            # Database schema, designed to support more leagues and sports
 
-team_aliases.sql      Team-name mappings between data sources
+team_aliases.sql      # Team-name mappings between data sources
 
-checks.sql            SQL sanity checks and data exploration queries
+checks.sql            # SQL sanity checks and data exploration queries
 
-poisson_model.ipynb   Model, backtest, tuning and evaluation
+poisson_model.ipynb   # Model, backtest, tuning and evaluation
 
 Running it:
 Requires Python 3.11+.
