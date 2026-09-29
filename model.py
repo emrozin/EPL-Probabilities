@@ -2,7 +2,7 @@
 
 Used by the notebook and the website:
     load_games(conn)     finished matches, with Understat xG where available
-    load_market(conn)    closing-market probabilities with the bookmaker margin removed
+    load_market(conn)    market probabilities (closing or pre-match) with the margin removed
     fit_poisson(...)     fit team attack/defense ratings
     predict(...)         home/draw/away probabilities for one match
     backtest(...)        walk-forward backtest
@@ -41,8 +41,12 @@ def load_games(conn, league="EPL"):
     """, conn, params=(league,))
 
 
-def load_market(conn):
-    """Closing 1X2 probabilities per game: Pinnacle, else Betfair Exchange, margin removed."""
+def load_market(conn, closing=True):
+    """1X2 probabilities per game: Pinnacle, else Betfair Exchange, margin removed.
+
+    closing=True uses closing odds (for backtests); closing=False uses pre-match odds
+    (for upcoming games, whose closing odds don't exist yet).
+    """
     return pd.read_sql("""
         WITH closing AS (
             SELECT game_id, bookmaker,
@@ -50,7 +54,7 @@ def load_market(conn):
                    MAX(CASE WHEN outcome = 'draw' THEN 1.0 / price END) AS d,
                    MAX(CASE WHEN outcome = 'away' THEN 1.0 / price END) AS a
             FROM odds
-            WHERE market = '1x2' AND is_closing = 1
+            WHERE market = '1x2' AND is_closing = ?
               AND bookmaker IN ('Pinnacle', 'Betfair Exchange')
             GROUP BY game_id, bookmaker
             HAVING COUNT(*) = 3
@@ -67,7 +71,7 @@ def load_market(conn):
                a / (h + d + a) AS mkt_away
         FROM ranked
         WHERE rn = 1
-    """, conn)
+    """, conn, params=(1 if closing else 0,))
 
 
 def fit_poisson(train, as_of, half_life_days=HALF_LIFE_DAYS, shrinkage=SHRINKAGE, xg_weight=XG_WEIGHT):
@@ -80,10 +84,11 @@ def fit_poisson(train, as_of, half_life_days=HALF_LIFE_DAYS, shrinkage=SHRINKAGE
     away_idx = train["away"].map(index).to_numpy()
 
     # Blend actual goals with xG. Matches without xG (before 2014/15) fall back to goals.
-    home_xg = train["home_xg"].fillna(train["home_score"])
-    away_xg = train["away_xg"].fillna(train["away_score"])
-    home_goals = ((1 - xg_weight) * train["home_score"] + xg_weight * home_xg).to_numpy()
-    away_goals = ((1 - xg_weight) * train["away_score"] + xg_weight * away_xg).to_numpy()
+    # astype(float) keeps the columns numeric even when no match in the window has xG.
+    home_xg = train["home_xg"].astype(float).fillna(train["home_score"])
+    away_xg = train["away_xg"].astype(float).fillna(train["away_score"])
+    home_goals = ((1 - xg_weight) * train["home_score"] + xg_weight * home_xg).to_numpy(dtype=float)
+    away_goals = ((1 - xg_weight) * train["away_score"] + xg_weight * away_xg).to_numpy(dtype=float)
 
     days_ago = (pd.Timestamp(as_of) - pd.to_datetime(train["date"])).dt.days.to_numpy()
     weights = 0.5 ** (days_ago / half_life_days)
