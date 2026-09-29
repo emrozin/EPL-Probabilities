@@ -62,7 +62,7 @@ Model:
 Each team has an attack and a defense rating, plus a league-wide home advantage.
 A team's expected goals in a match are:
 
-expected goals = base rate × home advantage (if at home) × attack ÷ opponent's defense
+  expected goals = base rate × home advantage (if at home) × attack ÷ opponent's defense
 
 Each team's goals are modeled as a Poisson distribution around its expected goals, 
 which gives the probability of every exact scoreline. Summing the scorelines gives
