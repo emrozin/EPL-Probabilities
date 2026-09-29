@@ -155,3 +155,6 @@ Notes:
 Data comes from football-data.co.uk and Understat; please respect their terms of use. 
 Understat has no official API, so its importer may need updating if the site changes.
 This is a statistics project, not betting advice.
+   ## License
+
+   Copyright © 2026 [Ethan Rozin]. All rights reserved. The code is published for viewing and evaluation only; see [LICENSE](LICENSE).
