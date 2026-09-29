@@ -21,8 +21,8 @@ Model	                                                        | Log loss
 --------------------------------------------------------------|---------
 Goals only, initial settings	                                | 0.9824
 Goals only, tuned	                                            | 0.9813
-+ expected goals (xG) blend	                                  | 0.9778
-+ xG with re-tuned recency weighting	                        | 0.9754
+expected goals (xG) blend	                                    | 0.9778
+xG with re-tuned recency weighting	                          | 0.9754
 Closing market (Pinnacle / Betfair Exchange, margin removed)	| 0.9592
 
 Adding xG and re-tuning closed 27% of the gap between the goals-only model
@@ -36,15 +36,15 @@ Results as of September 2026; the current season updates as new matches are play
 
 Data:
 
-Source	                      Coverage	                     Contents
------------------------------------------------------------------------------------------
-football-data.co.uk    	    1993/94 onward	            Results, half-time scores, 
-                                                        match stats (from 2000/01), 
-                                                        1X2 / over-under / Asian handicap 
-                                                        odds from 20+ bookmakers, pre-match 
-                                                        and closing.
-                                                        
-Understat	                   2014/15 onward	            Expected goals (xG) per team per match
+Source	               |      Coverage	           |       Contents
+-----------------------|---------------------------|----------------------------------
+football-data.co.uk    |	    1993/94 onward	     |    Results, half-time scores, 
+                       |                           |    match stats (from 2000/01), 
+                       |                           |    1X2 / over-under / Asian handicap 
+                       |                           |    odds from 20+ bookmakers, pre-match 
+                       |                           |    and closing.
+                       |                           |      
+Understat	             |      2014/15 onward	     |    Expected goals (xG) per team per match
 
 The database currently holds 13,000+ matches. Some data-quality work involved:
 
