@@ -67,3 +67,14 @@ FROM raw_source_rows r
 JOIN games g ON g.id = r.game_id
 WHERE g.season = 2024
 LIMIT 3;
+
+-- 7. Understat xG coverage by season, and how xG compares with actual goals.
+SELECT g.season,
+       COUNT(*)                                        AS games_with_xg,
+       ROUND(AVG(x.home_xg + x.away_xg), 2)            AS xg_per_game,
+       ROUND(AVG(g.home_score + g.away_score), 2)      AS goals_per_game
+FROM game_xg x
+JOIN games g ON g.id = x.game_id
+WHERE x.source = 'understat'
+GROUP BY g.season
+ORDER BY g.season;

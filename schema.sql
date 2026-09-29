@@ -48,7 +48,10 @@ CREATE TABLE IF NOT EXISTS soccer_match_stats (
     away_yellows          INTEGER,
     home_reds             INTEGER,
     away_reds             INTEGER,
-    referee               TEXT
+    referee               TEXT,
+    home_xg               REAL,           -- football-data.co.uk's xG (2026/27 on);
+                                          -- Understat's xG is in game_xg
+    away_xg               REAL
 );
 
 CREATE TABLE IF NOT EXISTS odds (
@@ -75,6 +78,26 @@ CREATE TABLE IF NOT EXISTS raw_source_rows (
     game_id  INTEGER PRIMARY KEY REFERENCES games(id),
     source   TEXT NOT NULL,               -- e.g. 'football-data.co.uk E0 1993'
     data     TEXT NOT NULL                -- JSON object of the original row
+);
+
+-- Maps the team names other data sources use to our teams,
+-- e.g. Understat's 'Manchester United' -> our 'Man United'. Filled from team_aliases.sql.
+CREATE TABLE IF NOT EXISTS team_aliases (
+    source       TEXT NOT NULL,           -- e.g. 'understat'
+    league_id    INTEGER NOT NULL REFERENCES leagues(id),
+    source_name  TEXT NOT NULL,           -- the name as that source writes it
+    team_id      INTEGER NOT NULL REFERENCES teams(id),
+    PRIMARY KEY (source, league_id, source_name)
+);
+
+-- Expected goals per game, kept per source because providers use different xG models.
+CREATE TABLE IF NOT EXISTS game_xg (
+    game_id          INTEGER NOT NULL REFERENCES games(id),
+    source           TEXT NOT NULL,       -- e.g. 'understat'
+    home_xg          REAL NOT NULL,
+    away_xg          REAL NOT NULL,
+    source_match_id  TEXT,                -- the source's own id for the match
+    PRIMARY KEY (game_id, source)
 );
 
 CREATE TABLE IF NOT EXISTS predictions (

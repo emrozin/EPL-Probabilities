@@ -49,17 +49,28 @@ BOOKMAKERS_1X2 = {
     "Sportingbet": ["SB"],
     "Sporting Odds": ["SO"],
     "1xBet": ["1XB"],
+    "Betfred": ["BFD"],
+    "BetVictor": ["BV"],
+    "Paddy Power": ["PP"],
+    "Sky Bet": ["SKB"],
+    "Betfair Exchange": ["BFE"],
+    "Betfair": ["BF"],
+    "BetMGM": ["BMGM"],
+    "Coral": ["CL"],
+    "Stanleybet": ["SY"],
     "Market max": ["Max", "BbMx"],
     "Market average": ["Avg", "BbAv"],
 }
 BOOKMAKERS_TOTALS_AH = {
     "Pinnacle": ["P"],
     "Bet365": ["B365"],
+    "Betfair Exchange": ["BFE"],
     "Market max": ["Max", "BbMx"],
     "Market average": ["Avg", "BbAv"],
 }
 
 # CSV column -> soccer_match_stats column
+STATS_FLOAT_COLUMNS = {"HxG": "home_xg", "AxG": "away_xg"}
 STATS_COLUMNS = {
     "HTHG": "ht_home_score", "HTAG": "ht_away_score",
     "HS": "home_shots", "AS": "away_shots",
@@ -118,6 +129,19 @@ def first_value(row: pd.Series, columns: list[str]):
     return None
 
 
+def known_columns() -> set[str]:
+    """Every CSV column this importer maps into a table (everything else stays in the raw JSON)."""
+    known = {"Div", "Date", "Time", "HomeTeam", "AwayTeam", "FTHG", "FTAG", "FTR", "HTR",
+             "Referee", "AHh", "BbAHh", "AHCh"}
+    known |= set(STATS_COLUMNS) | set(STATS_FLOAT_COLUMNS)
+    for c in ("", "C"):
+        for prefixes in BOOKMAKERS_1X2.values():
+            known |= {p + c + letter for p in prefixes for letter in "HDA"}
+        for prefixes in BOOKMAKERS_TOTALS_AH.values():
+            known |= {p + c + s for p in prefixes for s in (">2.5", "<2.5", "AHH", "AHA")}
+    return known
+
+
 def as_int(value):
     return None if value is None or pd.isna(value) else int(value)
 
@@ -170,6 +194,9 @@ def upsert_game(conn, league_id, season, date, home_id, away_id, home_score, awa
 
 def upsert_stats(conn: sqlite3.Connection, game_id: int, row: pd.Series) -> None:
     values = {db_col: as_int(first_value(row, [csv_col])) for csv_col, db_col in STATS_COLUMNS.items()}
+    for csv_col, db_col in STATS_FLOAT_COLUMNS.items():
+        value = first_value(row, [csv_col])
+        values[db_col] = float(value) if value is not None else None
     referee = first_value(row, ["Referee"])
     values["referee"] = str(referee).strip() if referee is not None else None
 
@@ -242,6 +269,8 @@ def main() -> None:
 
     league_id = get_league_id(conn)
     team_ids: dict[str, int] = {}
+    known = known_columns()
+    unmapped: dict[str, list[int]] = {}  # column -> seasons it appears in
 
     for season in range(FIRST_SEASON, LAST_SEASON + 1):
         label = f"{season}/{(season + 1) % 100:02d}"
@@ -250,6 +279,10 @@ def main() -> None:
         except requests.RequestException as err:
             print(f"{label}: skipped ({err})")
             continue
+
+        for col in df.columns:
+            if col not in known and df[col].notna().any():
+                unmapped.setdefault(col, []).append(season)
 
         new_odds = 0
         for _, row in df.iterrows():
@@ -267,6 +300,11 @@ def main() -> None:
         print(f"{label}: {len(df)} games, {new_odds} new odds rows")
 
     conn.close()
+
+    if unmapped:
+        print("\nColumns kept only in raw_source_rows (not mapped to a table):")
+        for col, seasons in sorted(unmapped.items()):
+            print(f"  {col:<10} {len(seasons):>2} season(s), {min(seasons)}-{max(seasons)}")
 
 
 if __name__ == "__main__":  # Python's equivalent of Java's main()
