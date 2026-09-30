@@ -89,3 +89,32 @@ def test_goals_markets_appear_on_the_site(client):
     assert "Chance of a" in client.get("/team/team-a/").text
     backtest = client.get("/backtest/").text
     assert "Over/under 2.5 goals and exact scores" in backtest
+
+
+def test_match_pages_for_finished_matches(client):
+    results = client.get("/results/").text
+    match_links = re.findall(r'href="(/match/[^"]+)"', results)
+    assert match_links, "results page should link each score to its match page"
+    page = client.get(match_links[0])
+    assert page.status_code == 200
+    html = page.text
+    assert "Every possible score" in html
+    assert html.count('class="cell ') == 36          # a 6 x 6 heat map
+    assert html.count("cell-actual") == 1 or "falls in that group" in html
+    assert "Form going into the match" in html and "Head to head" in html
+
+
+def test_unknown_matches_show_the_not_found_page(client):
+    assert client.get("/match/2026-10-10/team-a-v-nobody/").status_code == 404
+    assert client.get("/match/1999-01-01/team-a-v-team-b/").status_code == 404
+
+
+def test_heatmap_marks_only_the_actual_score():
+    from model import scoreline_grid
+    grid = scoreline_grid(1.5, 1.1)
+    hm = site.heatmap(grid, actual=(2, 1))
+    marked = [(r["goals"], j) for r in hm["rows"] for j, c in enumerate(r["cells"]) if c["actual"]]
+    assert marked == [(2, 1)]
+    assert hm["rows"][2]["cells"][1]["outcome"] == "home"
+    assert hm["rows"][1]["cells"][1]["outcome"] == "draw"
+    assert site.heatmap(grid, actual=(7, 0))["actual_off_grid"]

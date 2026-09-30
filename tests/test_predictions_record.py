@@ -136,3 +136,19 @@ def test_older_records_without_expected_goals_still_restore(project, fixtures):
     conn = sqlite3.connect(fixtures)
     assert records.restore(conn) == 1
     assert conn.execute("SELECT COUNT(*) FROM prediction_goals").fetchone()[0] == 0
+
+
+def test_upcoming_matches_have_a_match_page(fixtures, monkeypatch):
+    from fastapi.testclient import TestClient
+    import app as site
+    from datetime import date
+    predict_upcoming.main(["--record"], now=FRIDAY_EVENING)
+    monkeypatch.setattr(site, "DB_PATH", fixtures)
+    monkeypatch.setattr(site, "date", type("FrozenDate", (), {"today": staticmethod(lambda: date(2026, 10, 9))}))
+    site._cache.clear()
+    client = TestClient(site.app)
+    home = client.get("/").text
+    assert 'href="/match/2026-10-10/team-a-v-team-b/"' in home
+    page = client.get("/match/2026-10-10/team-a-v-team-b/")
+    assert page.status_code == 200
+    assert "12:30 UK time" in page.text and "Likeliest" not in page.text and "Every possible score" in page.text

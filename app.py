@@ -58,6 +58,11 @@ def team_url(name: str, season: int | None = None) -> str:
     return f"{BASE}/team/{slugify(name)}/" + (f"{season}/" if season is not None else "")
 
 
+def match_url(match_date: str, home: str, away: str) -> str:
+    """'2026-10-10', 'Arsenal', 'Chelsea' -> '/match/2026-10-10/arsenal-v-chelsea/'"""
+    return f"{BASE}/match/{match_date}/{slugify(home)}-v-{slugify(away)}/"
+
+
 templates.env.globals["team_url"] = team_url
 templates.env.globals["base"] = BASE
 
@@ -244,6 +249,7 @@ def match_card(m) -> dict:
     card = {
         "home": m.home,
         "away": m.away,
+        "url": match_url(m.date, m.home, m.away),
         "date": day_label(m.date, with_year=True),
         "score": f"{m.home_score}\u2013{m.away_score}",
         "result": m.result,
@@ -328,32 +334,35 @@ def rating_text(attack: float, defense: float) -> dict:
 # ---------------------------------------------------------------- pages
 # Every address ends with "/" so each page can be saved as <address>/index.html for static hosting.
 
+def load_upcoming(conn, today: str) -> pd.DataFrame:
+    """Scheduled matches from today on that have a live prediction, with pre-match market odds."""
+    matches = pd.read_sql("""
+        SELECT g.id, g.date, h.name AS home, a.name AS away,
+               MAX(CASE WHEN p.outcome = 'home' THEN p.probability END) AS model_home,
+               MAX(CASE WHEN p.outcome = 'draw' THEN p.probability END) AS model_draw,
+               MAX(CASE WHEN p.outcome = 'away' THEN p.probability END) AS model_away,
+               MAX(pg.exp_home) AS exp_home, MAX(pg.exp_away) AS exp_away
+        FROM games g
+        JOIN leagues l     ON l.id = g.league_id
+        JOIN teams h       ON h.id = g.home_team_id
+        JOIN teams a       ON a.id = g.away_team_id
+        JOIN predictions p ON p.game_id = g.id
+                          AND p.model_name = ? AND p.model_version = ?
+        LEFT JOIN prediction_goals pg ON pg.game_id = g.id
+                          AND pg.model_name = p.model_name AND pg.model_version = p.model_version
+        WHERE l.code = 'EPL' AND g.status = 'scheduled' AND g.date >= ?
+        GROUP BY g.id
+        ORDER BY g.date, h.name
+    """, conn, params=(MODEL_NAME, MODEL_VERSION, today))
+    return (matches.merge(load_market(conn, closing=False), on="id", how="left")
+                   .merge(load_totals(conn, closing=False), on="id", how="left"))
+
+
 @app.get("/", response_class=HTMLResponse)
 def upcoming(request: Request):
-    today = date.today().isoformat()
     with connect() as conn:
-        matches = pd.read_sql("""
-            SELECT g.id, g.date, h.name AS home, a.name AS away,
-                   MAX(CASE WHEN p.outcome = 'home' THEN p.probability END) AS model_home,
-                   MAX(CASE WHEN p.outcome = 'draw' THEN p.probability END) AS model_draw,
-                   MAX(CASE WHEN p.outcome = 'away' THEN p.probability END) AS model_away,
-                   MAX(pg.exp_home) AS exp_home, MAX(pg.exp_away) AS exp_away
-            FROM games g
-            JOIN leagues l     ON l.id = g.league_id
-            JOIN teams h       ON h.id = g.home_team_id
-            JOIN teams a       ON a.id = g.away_team_id
-            JOIN predictions p ON p.game_id = g.id
-                              AND p.model_name = ? AND p.model_version = ?
-            LEFT JOIN prediction_goals pg ON pg.game_id = g.id
-                              AND pg.model_name = p.model_name AND pg.model_version = p.model_version
-            WHERE l.code = 'EPL' AND g.status = 'scheduled' AND g.date >= ?
-            GROUP BY g.id
-            ORDER BY g.date, h.name
-        """, conn, params=(MODEL_NAME, MODEL_VERSION, today))
-        market = load_market(conn, closing=False)
-        totals = load_totals(conn, closing=False)
+        matches = load_upcoming(conn, date.today().isoformat())
 
-    matches = matches.merge(market, on="id", how="left").merge(totals, on="id", how="left")
     days = []
     for match_date, group in matches.groupby("date", sort=True):
         day_matches = []
@@ -362,6 +371,7 @@ def upcoming(request: Request):
             day_matches.append({
                 "home": m.home,
                 "away": m.away,
+                "url": match_url(m.date, m.home, m.away),
                 "model": percentages(m.model_home, m.model_draw, m.model_away),
                 "market": percentages(m.mkt_home, m.mkt_draw, m.mkt_away) if has_market else None,
                 **goals_info(m.exp_home, m.exp_away, m.mkt_over),
@@ -555,6 +565,116 @@ def team_page(request: Request, slug: str, season: int | str | None):
         "summary": forecast_summary(matches),
         "groups": groups,
         "seasons": options,
+    })
+
+
+HEATMAP_GOALS = 6  # the heat map shows 0-5 goals for each side
+
+
+def heatmap(grid, actual=None) -> dict:
+    """Rows of cells for the score heat map, shaded by outcome and scaled to the likeliest score."""
+    shown = grid[:HEATMAP_GOALS, :HEATMAP_GOALS]
+    top = shown.max()
+    rows = []
+    for i in range(HEATMAP_GOALS):
+        cells = []
+        for j in range(HEATMAP_GOALS):
+            p = grid[i, j]
+            cells.append({
+                "pct": pct(p) if p >= 0.0005 else "<0.1",
+                "outcome": "home" if i > j else "draw" if i == j else "away",
+                "strength": round(0.08 + 0.92 * p / top, 3),   # 0-1, drives the colour's intensity
+                "strong": p / top > 0.55,                     # dark enough to need light text
+                "actual": actual == (i, j),
+            })
+        rows.append({"goals": i, "cells": cells})
+    return {"rows": rows, "columns": list(range(HEATMAP_GOALS)),
+            "beyond": pct(1 - shown.sum()), "actual_off_grid": actual is not None and max(actual) >= HEATMAP_GOALS}
+
+
+def team_form(finished: pd.DataFrame, team: str, before: str, n: int = 5) -> list[dict]:
+    """A team's last n results before a date, oldest first."""
+    played = finished[((finished["home"] == team) | (finished["away"] == team)) & (finished["date"] < before)]
+    rows = []
+    for m in played.sort_values("date").tail(n).itertuples():
+        at_home = m.home == team
+        rows.append({
+            "outcome": "D" if m.result == "draw" else ("W" if (m.result == "home") == at_home else "L"),
+            "opponent": m.away if at_home else m.home,
+            "venue": "H" if at_home else "A",
+            "score": f"{m.home_score}\u2013{m.away_score}",
+            "url": match_url(m.date, m.home, m.away),
+        })
+    return rows
+
+
+def head_to_head(finished: pd.DataFrame, a: str, b: str, before: str, n: int = 5) -> list[dict]:
+    """The last n meetings of two teams before a date, most recent first."""
+    met = finished[(((finished["home"] == a) & (finished["away"] == b)) |
+                    ((finished["home"] == b) & (finished["away"] == a))) & (finished["date"] < before)]
+    return [{"date": day_label(m.date, with_year=True), "home": m.home, "away": m.away,
+             "score": f"{m.home_score}\u2013{m.away_score}", "result": m.result,
+             "url": match_url(m.date, m.home, m.away)}
+            for m in met.sort_values("date", ascending=False).head(n).itertuples()]
+
+
+@app.get("/match/{match_date}/{slug}/", response_class=HTMLResponse)
+def match_page(request: Request, match_date: str, slug: str):
+    d = data()
+    matches_slug = lambda df: df[(df["date"] == match_date) &
+                                 (df["home"].map(slugify) + "-v-" + df["away"].map(slugify) == slug)]
+
+    found = matches_slug(d["finished"])
+    finished = not found.empty
+    if finished:
+        m = next(found.merge(d["predictions"], on="id", how="left")
+                      .merge(d["closing"], on="id", how="left")
+                      .merge(d["totals"], on="id", how="left").itertuples())
+        card = match_card(m)
+        score = (int(m.home_score), int(m.away_score))
+    else:
+        with connect() as conn:
+            upcoming = matches_slug(load_upcoming(conn, date.today().isoformat()))
+            kickoff = None
+            if not upcoming.empty:
+                row = conn.execute("SELECT kickoff FROM games WHERE id = ?", (int(upcoming.iloc[0]["id"]),)).fetchone()
+                kickoff = row[0] if row else None
+        if upcoming.empty:
+            raise HTTPException(status_code=404)
+        m = next(upcoming.itertuples())
+        card = {
+            "home": m.home, "away": m.away, "result": None, "score": None, "source": "Live prediction",
+            "model": percentages(m.model_home, m.model_draw, m.model_away),
+            "market": percentages(m.mkt_home, m.mkt_draw, m.mkt_away) if pd.notna(m.mkt_home) else None,
+            "model_actual": None, "market_actual": None, "kickoff": kickoff,
+            **goals_info(m.exp_home, m.exp_away, m.mkt_over),
+        }
+        score = None
+
+    has_goals = card.get("model") is not None and pd.notna(getattr(m, "exp_home", np.nan))
+    goals = None
+    if has_goals:
+        grid = scoreline_grid(m.exp_home, m.exp_away)
+        markets = goal_markets(grid)
+        goals = {
+            "exp_home": f"{m.exp_home:.2f}", "exp_away": f"{m.exp_away:.2f}",
+            "heatmap": heatmap(grid, score),
+            "lines": [{"line": line, "over": pct(markets[f"over_{line}"]), "under": pct(markets[f"under_{line}"])}
+                      for line in (1.5, 2.5, 3.5)],
+            "btts": pct(markets["btts"]),
+            "market_over": card.get("market_over"),
+        }
+
+    return templates.TemplateResponse(request, "match.html", {
+        "active": None,
+        "m": card,
+        "finished": finished,
+        "date": day_label(match_date),
+        "goals": goals,
+        "total_goals": sum(score) if score else None,
+        "form_home": team_form(d["finished"], m.home, match_date),
+        "form_away": team_form(d["finished"], m.away, match_date),
+        "h2h": head_to_head(d["finished"], m.home, m.away, match_date),
     })
 
 

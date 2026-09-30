@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% from "macros.html" import split_bar, team_link, outcome_badge %}
+{% block title %}{{ m.home }} v {{ m.away }} | Premier League probabilities{% endblock %}
+
+{% block content %}
+<div class="match-header">
+  <p class="eyebrow">{{ date }}{% if m.kickoff %} &middot; {{ m.kickoff }} UK time{% endif %}</p>
+  {% set home_class = {'home': 'winner', 'away': 'loser'}.get(m.result, '') %}
+  {% set away_class = {'away': 'winner', 'home': 'loser'}.get(m.result, '') %}
+  <h1 class="match-title">
+    <span class="team-home {{ home_class }}">{{ team_link(m.home) }}</span>
+    {% if finished %}<span class="final-score">{{ m.score }}</span>{% else %}<span class="versus">v</span>{% endif %}
+    <span class="team-away {{ away_class }}">{{ team_link(m.away) }}</span>
+  </h1>
+  {% if m.source %}<p class="match-source"><span class="source">{{ m.source }}</span></p>{% endif %}
+</div>
+
+{% if m.model %}
+<section class="detail-section">
+  <h2>Forecast</h2>
+  <div class="forecast">
+    <p class="bar-label">Model</p>
+    {{ split_bar(m.model, 'model', m.result) }}
+    {% if m.market %}
+      <p class="bar-label">Betting market {{ 'at kickoff' if finished else 'now' }}</p>
+      {{ split_bar(m.market, 'model', m.result) }}
+    {% endif %}
+    <p class="key">
+      <span class="key-item"><span class="swatch seg-home"></span>{{ m.home }} win</span>
+      <span class="key-item"><span class="swatch seg-draw"></span>Draw</span>
+      <span class="key-item"><span class="swatch seg-away"></span>{{ m.away }} win</span>
+    </p>
+    {% if finished %}
+    <p class="section-note">The model gave this result <strong>{{ m.model_actual }}%</strong>{% if m.market_actual is not none %}; the market gave it {{ m.market_actual }}%{% endif %}.</p>
+    {% endif %}
+  </div>
+</section>
+{% else %}
+<section class="detail-section">
+  <p class="section-note">There's no model forecast for this match: one of the teams had no recent Premier League matches to rate it on.</p>
+</section>
+{% endif %}
+
+{% if goals %}
+<section class="detail-section">
+  <h2>Every possible score</h2>
+  <p class="section-note">
+    Expected goals: {{ m.home }} <strong>{{ goals.exp_home }}</strong>, {{ m.away }} <strong>{{ goals.exp_away }}</strong>.
+    Each cell is the model's chance of that exact score. Blue cells are {{ m.home }} wins, gold {{ m.away }} wins and grey draws; the stronger the colour, the likelier the score.{% if finished %} The actual score is outlined.{% endif %}
+  </p>
+  <div class="table-wrap">
+    <table class="heatmap">
+      <caption class="visually-hidden">Probability of each score, {{ m.home }} goals by row and {{ m.away }} goals by column</caption>
+      <thead>
+        <tr>
+          <th scope="col" class="corner"><span class="axis-home">{{ m.home }} &darr;</span><span class="axis-away">{{ m.away }} &rarr;</span></th>
+          {% for c in goals.heatmap.columns %}<th scope="col">{{ c }}</th>{% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in goals.heatmap.rows %}
+        <tr>
+          <th scope="row">{{ row.goals }}</th>
+          {% for cell in row.cells %}
+          <td class="cell cell-{{ cell.outcome }}{% if cell.strong %} cell-strong{% endif %}{% if cell.actual %} cell-actual{% endif %}"
+              style="--strength: {{ cell.strength }}">{{ cell.pct }}%</td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="note">Scores with six or more goals for either side: {{ goals.heatmap.beyond }}% combined.{% if goals.heatmap.actual_off_grid %} The actual score falls in that group.{% endif %}</p>
+
+  <h3>Goals</h3>
+  <table class="goals-table">
+    <thead><tr><th scope="col">Total goals</th><th scope="col" class="num">Over</th><th scope="col" class="num">Under</th></tr></thead>
+    <tbody>
+      {% for line in goals.lines %}
+      <tr>
+        <th scope="row">{{ line.line }}</th>
+        <td class="num">{{ line.over }}%{% if line.line == 2.5 and goals.market_over is not none %} <span class="muted">(market {{ goals.market_over }}%)</span>{% endif %}</td>
+        <td class="num">{{ line.under }}%</td>
+      </tr>
+      {% endfor %}
+      <tr><th scope="row">Both teams score</th><td class="num">{{ goals.btts }}%</td><td class="num"></td></tr>
+    </tbody>
+  </table>
+  {% if finished %}<p class="note">{{ total_goals }} goal{{ '' if total_goals == 1 else 's' }} were scored.</p>{% endif %}
+</section>
+{% endif %}
+
+<section class="detail-section">
+  <h2>Form going into the match</h2>
+  <div class="form-columns">
+    {% for team, form in [(m.home, form_home), (m.away, form_away)] %}
+    <div>
+      <h3>{{ team_link(team) }}</h3>
+      {% if form %}
+      <ol class="form-list">
+        {% for f in form %}
+        <li>{{ outcome_badge(f.outcome) }} <a class="team-link" href="{{ f.url }}">{{ f.score }}</a> {{ 'v' if f.venue == 'H' else 'at' }} {{ f.opponent }}</li>
+        {% endfor %}
+      </ol>
+      <p class="note">Oldest first.</p>
+      {% else %}
+      <p class="note">No earlier Premier League matches in the data.</p>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="detail-section">
+  <h2>Head to head</h2>
+  {% if h2h %}
+  <ul class="h2h-list">
+    {% for g in h2h %}
+    <li>
+      <span class="h2h-date">{{ g.date }}</span>
+      <a class="team-link" href="{{ g.url }}">
+        <span class="{{ 'winner' if g.result == 'home' }}">{{ g.home }}</span>
+        <span class="h2h-score">{{ g.score }}</span>
+        <span class="{{ 'winner' if g.result == 'away' }}">{{ g.away }}</span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="note">These teams haven't met in the Premier League before this match (since 1993/94).</p>
+  {% endif %}
+</section>
+{% endblock %}

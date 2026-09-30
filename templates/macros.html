@@ -33,7 +33,7 @@
         <span class="team-home {{ home_class }}">{{ team_link(m.home, current_team) }}</span>
         <span class="team-away {{ away_class }}">{{ team_link(m.away, current_team) }}</span>
       </p>
-      <p class="score">{% if m.outcome %}{{ outcome_badge(m.outcome) }} {% endif %}{{ m.score }}</p>
+      <p class="score">{% if m.outcome %}{{ outcome_badge(m.outcome) }} {% endif %}<a class="score-link" href="{{ m.url }}" title="Match details">{{ m.score }}</a></p>
     </div>
     <div class="bars">
       {% if m.model %}

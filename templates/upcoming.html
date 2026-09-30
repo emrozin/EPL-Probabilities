@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import split_bar, team_link %}
+{% from "macros.html" import split_bar, team_link, goals_line %}
 
 {% block content %}
 <div class="intro">
@@ -31,6 +31,8 @@
           {% else %}
             <p class="market-numbers">No market odds collected yet</p>
           {% endif %}
+          {{ goals_line(m) }}
+          <p class="details-link"><a href="{{ m.url }}">Match details &rarr;</a></p>
         </div>
       </li>
       {% endfor %}

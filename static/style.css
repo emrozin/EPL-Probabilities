@@ -433,3 +433,84 @@ code {
 }
 .goals-line strong { color: var(--ink); font-weight: 600; }
 .goals-line .muted { color: var(--muted); }
+
+/* ---------- Links to match pages ---------- */
+.score-link { color: inherit; text-decoration: none; border-bottom: 2px solid var(--line); }
+.score-link:hover { border-bottom-color: var(--home); }
+.details-link { margin: 0.35rem 0 0; font-size: 0.9rem; }
+.details-link a { text-decoration: none; font-weight: 500; }
+.details-link a:hover { text-decoration: underline; }
+
+/* ---------- Match page ---------- */
+.match-header { margin-bottom: 2rem; }
+.match-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.3rem 1rem;
+  font-size: 2.6rem;
+}
+.match-title .team-home::before, .match-title .team-away::before { width: 1rem; height: 1rem; }
+.match-title .versus { color: var(--muted); font-weight: 500; font-size: 1.8rem; }
+.match-title .team-home, .match-title .team-away { color: var(--ink); font-weight: 600; }
+.match-title .winner { font-weight: 700; }
+.match-title .loser { color: var(--muted); font-weight: 500; }
+.final-score { font-variant-numeric: tabular-nums; }
+.match-source { margin: 0; }
+.detail-section { margin-bottom: 2.75rem; }
+.detail-section h3 { font-family: var(--font-display); font-weight: 600; font-size: 1.3rem; margin: 1.5rem 0 0.5rem; }
+.forecast { max-width: 44rem; }
+.bar-label { margin: 0.8rem 0 0.3rem; font-size: 0.9rem; font-weight: 600; color: var(--muted); }
+.forecast .key { margin-top: 0.8rem; }
+
+/* Heat map: each cell mixes its outcome colour with the page background by --strength (0-1). */
+.heatmap { border-collapse: separate; border-spacing: 3px; font-variant-numeric: tabular-nums; }
+.heatmap th { font-size: 0.9rem; font-weight: 600; color: var(--muted); padding: 0.3rem; text-align: center; }
+.heatmap th.corner { text-align: left; font-weight: 500; font-size: 0.8rem; line-height: 1.3; min-width: 6.5rem; }
+.heatmap .axis-home, .heatmap .axis-away { display: block; }
+.heatmap .cell {
+  width: 4.2rem;
+  height: 2.6rem;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--ink);
+  --tint: color-mix(in srgb, var(--cell-colour) calc(var(--strength) * 100%), var(--surface));
+  background: var(--tint);
+}
+.heatmap .cell-home { --cell-colour: var(--home); }
+.heatmap .cell-draw { --cell-colour: #7d877f; }
+.heatmap .cell-away { --cell-colour: var(--away); }
+.heatmap .cell-home.cell-strong, .heatmap .cell-draw.cell-strong { color: #fff; font-weight: 600; }
+.heatmap .cell-away.cell-strong { font-weight: 600; }
+.heatmap .cell-actual { outline: 3px solid var(--ink); outline-offset: -3px; font-weight: 700; }
+
+.goals-table { border-collapse: collapse; min-width: 20rem; font-variant-numeric: tabular-nums; }
+.goals-table th, .goals-table td { padding: 0.45rem 0.9rem 0.45rem 0; border-bottom: 1px solid var(--line); text-align: left; }
+.goals-table thead th { font-size: 0.85rem; color: var(--muted); font-weight: 600; }
+.goals-table tbody th { font-weight: 500; }
+.goals-table .num { text-align: right; }
+.muted { color: var(--muted); }
+
+.form-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1rem 2.5rem; }
+.form-columns h3 { margin-top: 0; }
+.form-list { list-style: none; margin: 0; padding: 0; }
+.form-list li { display: flex; align-items: center; gap: 0.55rem; padding: 0.35rem 0; border-bottom: 1px solid var(--line); }
+.form-list a { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.h2h-list { list-style: none; margin: 0; padding: 0; max-width: 40rem; }
+.h2h-list li { display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; padding: 0.5rem 0; border-bottom: 1px solid var(--line); }
+.h2h-date { color: var(--muted); font-size: 0.9rem; min-width: 8.5rem; }
+.h2h-list .winner { font-weight: 700; }
+.h2h-score { display: inline-block; min-width: 2.8rem; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+@media (max-width: 40rem) {
+  .match-title { font-size: 1.9rem; }
+  .match-title .team-home::after { content: none; }  /* the title has its own "v" */
+  .heatmap .cell { width: 2.9rem; height: 2.2rem; font-size: 0.72rem; }
+  .heatmap th.corner { min-width: 4.5rem; }
+}
