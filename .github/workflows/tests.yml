@@ -1,0 +1,27 @@
+# Runs the test suite on GitHub's servers every time code is pushed.
+# Results appear in the repository's Actions tab, and as a check mark (or cross) next to each commit.
+name: Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:   # adds a "Run workflow" button in the Actions tab
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+
+      - name: Install libraries
+        run: pip install -r requirements.txt
+
+      - name: Run the tests
+        run: pytest

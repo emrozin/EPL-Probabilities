@@ -149,6 +149,9 @@ def predict(model, home, away, max_goals=10, rho=RHO):
     grid[1, 0] *= 1 + exp_away * rho
     grid[1, 1] *= 1 - rho
 
+    # The grid stops at max_goals, so rescale it to cover the tiny chance of more goals than that.
+    grid /= grid.sum()
+
     return {
         "exp_home": exp_home,
         "exp_away": exp_away,

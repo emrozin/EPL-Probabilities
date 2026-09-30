@@ -6,3 +6,4 @@ fastapi
 uvicorn
 jinja2
 httpx
+pytest
