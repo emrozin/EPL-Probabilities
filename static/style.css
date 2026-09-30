@@ -514,3 +514,18 @@ code {
   .heatmap .cell { width: 2.9rem; height: 2.2rem; font-size: 0.72rem; }
   .heatmap th.corner { min-width: 4.5rem; }
 }
+
+/* ---------- Season forecast ---------- */
+.forecast-table { max-width: 46rem; }
+.position-grid { border-collapse: separate; border-spacing: 2px; font-variant-numeric: tabular-nums; font-size: 0.8rem; }
+.position-grid th { font-weight: 600; color: var(--muted); padding: 0.25rem; text-align: center; }
+.position-grid .grid-team { text-align: left; white-space: nowrap; padding-right: 0.75rem; font-family: var(--font-display); font-size: 1rem; color: var(--ink); }
+.pos-cell {
+  width: 2.1rem;
+  height: 1.9rem;
+  text-align: center;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--home) calc(var(--strength) * 100%), var(--surface));
+}
+.pos-cell.pos-strong { color: #fff; font-weight: 600; }
+.pos-cell.pos-edge { box-shadow: 2px 0 0 0 var(--ink); }

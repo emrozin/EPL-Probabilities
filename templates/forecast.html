@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% from "macros.html" import team_link %}
+{% block title %}Season forecast | Premier League probabilities{% endblock %}
+
+{% block content %}
+<div class="intro">
+  <h1>Season forecast</h1>
+  {% if rows %}
+  <p>The {{ remaining }} matches left in {{ season }}, played out {{ simulations }} times with the model's current ratings. Each simulated match gets a random score drawn from the model's probabilities; a team's chance of any finish is how often it happened across all the simulated seasons.</p>
+  {% endif %}
+</div>
+
+{% if rows %}
+  {% if remaining == 0 %}
+  <p class="section-note">The season is complete, so these are the final positions.</p>
+  {% endif %}
+
+<section class="detail-section">
+  <div class="table-wrap">
+    <table class="league forecast-table">
+      <thead>
+        <tr>
+          <th scope="col">Team</th>
+          <th scope="col" class="num wide-only"><abbr title="Current position">Now</abbr></th>
+          <th scope="col" class="num wide-only"><abbr title="Points so far">Pts</abbr></th>
+          <th scope="col" class="num"><abbr title="Expected points at the end of the season">Exp. pts</abbr></th>
+          <th scope="col" class="num">Title</th>
+          <th scope="col" class="num">Top 4</th>
+          <th scope="col" class="num">Relegated</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <th scope="row"><a class="team-link" href="{{ r.url }}">{{ r.team }}</a></th>
+          <td class="num pos wide-only">{{ r.position }}</td>
+          <td class="num wide-only">{{ r.points }}</td>
+          <td class="num pts">{{ r.expected_points }}</td>
+          <td class="num">{{ r.title }}</td>
+          <td class="num">{{ r.top_four }}</td>
+          <td class="num">{{ r.relegation }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="note">Sorted by expected final points. "Top 4" is the four places that usually lead to the Champions League (occasionally a fifth place does too). The bottom three are relegated. A dash means it didn't happen in any of the simulated seasons: very unlikely, rather than strictly impossible.</p>
+</section>
+
+<section class="detail-section">
+  <h2>Chance of finishing in each position</h2>
+  <p class="section-note">Each row adds up to 100%. The darker the cell, the likelier that finish. Lines mark the top four and the relegation places.</p>
+  <div class="table-wrap">
+    <table class="position-grid">
+      <thead>
+        <tr>
+          <th scope="col" class="grid-team">Team</th>
+          {% for p in positions %}<th scope="col">{{ p }}</th>{% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <th scope="row" class="grid-team">{{ team_link(r.team) }}</th>
+          {% for c in r.cells %}
+          <td class="pos-cell{% if c.strong %} pos-strong{% endif %}{% if c.edge %} pos-edge{% endif %}"
+              style="--strength: {{ c.strength }}">{{ c.text }}</td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="note">Figures are percentages, rounded; "&lt;1" means possible but under 1%, and a blank means it didn't happen in any simulation.</p>
+</section>
+
+<section class="detail-section">
+  <h2>What this doesn't account for</h2>
+  <p class="section-note">Each team's rating is held fixed for the rest of the season. In reality, ratings move with injuries, transfers, managers and form, so real seasons are less predictable than the simulation suggests: treat the most extreme chances, especially early in the season, as somewhat overconfident.</p>
+</section>
+{% else %}
+<section class="empty">
+  <h2>No forecast yet</h2>
+  <p>The forecast starts once the season's first matches have been played.</p>
+</section>
+{% endif %}
+{% endblock %}

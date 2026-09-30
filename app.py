@@ -28,6 +28,7 @@ from model import (TRAINING_YEARS, add_scores, fit_poisson, goal_markets, load_g
                    load_totals, scoreline_grid)
 from predict_upcoming import MODEL_NAME, MODEL_VERSION
 from run_backtest import BACKTEST_NAME, BACKTEST_VERSION, HELD_OUT_FROM, START_SEASON
+from simulate import remaining_fixtures, simulate_season
 
 ROOT = Path(__file__).resolve().parent
 DB_PATH = ROOT / "data" / "sports.db"
@@ -214,6 +215,32 @@ def cached_ratings() -> dict:
         d["ratings"] = current_ratings(d["games"], today)
         d["ratings_day"] = today
     return d["ratings"]
+
+
+def cached_forecast() -> dict | None:
+    """The current season simulated with today's ratings; recomputed when the data or the date changes."""
+    d, today = data(), date.today().isoformat()
+    if d.get("forecast_day") == today:
+        return d["forecast"]
+    finished = d["finished"]
+    forecast = None
+    if not finished.empty:
+        season = finished["season"].max()
+        season_games = finished[finished["season"] == season]
+        model = cached_ratings()
+        ratings = model["ratings"]
+
+        def expected_goals(home, away):
+            attack = lambda t: ratings["attack"].get(t, 1.0)   # a team with no rating counts as average
+            defense = lambda t: ratings["defense"].get(t, 1.0)
+            return (model["base"] * model["home_adv"] * attack(home) / defense(away),
+                    model["base"] * attack(away) / defense(home))
+
+        table = league_table(finished, season)
+        forecast = {"season": season, "table": table,
+                    **simulate_season(table, remaining_fixtures(season_games), expected_goals)}
+    d["forecast"], d["forecast_day"] = forecast, today
+    return forecast
 
 
 def season_options(seasons, selected, url) -> list[dict]:
@@ -675,6 +702,65 @@ def match_page(request: Request, match_date: str, slug: str):
         "form_home": team_form(d["finished"], m.home, match_date),
         "form_away": team_form(d["finished"], m.away, match_date),
         "h2h": head_to_head(d["finished"], m.home, m.away, match_date),
+    })
+
+
+def chance(p: float) -> str:
+    """How a forecast chance is shown: '–' if it never happened in any simulation, '<0.1%', '4.2%', '37%', '>99.9%'."""
+    if p == 0:
+        return "\u2013"
+    if p < 0.001:
+        return "<0.1%"
+    if p > 0.999 and p < 1:
+        return ">99.9%"
+    return f"{pct(p)}%"
+
+
+@app.get("/forecast/", response_class=HTMLResponse)
+def forecast_page(request: Request):
+    forecast = cached_forecast()
+    if forecast is None:
+        return templates.TemplateResponse(request, "forecast.html", {"active": "forecast", "rows": []})
+
+    probs = forecast["position_probs"]
+    n = len(forecast["teams"])
+    current = forecast["table"].set_index("team")
+    order = np.argsort(-forecast["expected_points"], kind="stable")
+    relegation_from = n - 2
+
+    rows = []
+    for i in order:
+        team = forecast["teams"][i]
+        cells = []
+        for pos in range(n):
+            p = probs[i, pos]
+            shown = round(p * 100)
+            cells.append({"text": str(shown) if shown >= 1 else ("<1" if p > 0 else ""),
+                          # square root, so moderate chances (5-20%) are visible, not just the big ones
+                          "strength": round(0.06 + 0.94 * p ** 0.5, 3) if p > 0 else 0,
+                          "strong": p >= 0.3,
+                          "edge": pos + 1 in (4, relegation_from - 1)})
+        rows.append({
+            "team": team,
+            "url": team_url(team),
+            "position": int(current.loc[team, "position"]),
+            "points": int(current.loc[team, "points"]),
+            "played": int(current.loc[team, "played"]),
+            "expected_points": f"{forecast['expected_points'][i]:.1f}",
+            "title": chance(probs[i, 0]),
+            "top_four": chance(probs[i, :4].sum()),
+            "relegation": chance(probs[i, relegation_from - 1:].sum()),
+            "cells": cells,
+        })
+
+    return templates.TemplateResponse(request, "forecast.html", {
+        "active": "forecast",
+        "rows": rows,
+        "season": season_label(forecast["season"]),
+        "remaining": forecast["remaining"],
+        "simulations": "{:,}".format(forecast["simulations"]),
+        "positions": list(range(1, n + 1)),
+        "relegation_from": relegation_from,
     })
 
 

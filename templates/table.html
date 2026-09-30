@@ -54,6 +54,7 @@
     </tbody>
   </table>
 </div>
+{% if is_current %}<p class="details-link"><a href="{{ base }}/forecast/">How the season could finish: the season forecast &rarr;</a></p>{% endif %}
 <p class="note">Ranked by points, then goal difference, then goals scored. The shaded rows below the line are the relegation places. Last 5 reads oldest to most recent. On small screens, goals, xG and form are hidden; open a team to see its matches.</p>
 {% else %}
   <section class="empty"><h2>No matches played yet</h2></section>

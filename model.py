@@ -218,6 +218,8 @@ def backtest(games, start_season, rho=RHO, **model_settings):
         cutoff = week_start.strftime("%Y-%m-%d")
         window_start = (week_start - pd.DateOffset(years=TRAINING_YEARS)).strftime("%Y-%m-%d")
         train = games[(games["date"] >= window_start) & (games["date"] < cutoff)]
+        if train.empty:
+            continue  # no earlier matches to learn from (e.g. the first weeks of a league's data)
         model = fit_poisson(train, cutoff, **model_settings)
         known = set(model["ratings"].index)
 

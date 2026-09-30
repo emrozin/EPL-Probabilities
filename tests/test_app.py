@@ -118,3 +118,10 @@ def test_heatmap_marks_only_the_actual_score():
     assert hm["rows"][2]["cells"][1]["outcome"] == "home"
     assert hm["rows"][1]["cells"][1]["outcome"] == "draw"
     assert site.heatmap(grid, actual=(7, 0))["actual_off_grid"]
+
+
+def test_season_forecast_page(client):
+    html = client.get("/forecast/").text
+    assert "Season forecast" in html and "Chance of finishing in each position" in html
+    assert html.count('class="pos-cell') == 10 * 10     # 10 simulated teams x 10 positions
+    assert "/forecast/" in client.get("/table/").text    # linked from the table

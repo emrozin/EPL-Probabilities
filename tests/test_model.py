@@ -116,3 +116,11 @@ def test_predict_includes_goal_markets(fitted):
     teams = list(fit["ratings"].index)
     p = predict(fit, teams[0], teams[1])
     assert {"over_2.5", "under_2.5", "btts", "top_scores", "exp_home", "exp_away"} <= set(p)
+
+
+def test_backtest_skips_weeks_with_no_earlier_matches():
+    """Regression: a league whose data starts after the backtest's first season used to crash."""
+    games, _ = simulate_league(seed=6, seasons=range(2022, 2024))
+    results = backtest(games, start_season=2016)
+    assert len(results) > 0
+    assert results["id"].isin(games.loc[games["season"] == 2022, "id"]).any()  # 2022 predicted once data exists
