@@ -420,3 +420,16 @@ code {
 .teams.finished .team-home, .teams.finished .team-away { font-weight: 500; color: var(--ink); }
 .teams.finished .winner { font-weight: 700; color: var(--ink); }
 .teams.finished .loser { color: var(--muted); }
+
+/* ---------- Goals line: over/under and exact scores ---------- */
+.goals-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 1.25rem;
+  margin: 0.3rem 0 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.goals-line strong { color: var(--ink); font-weight: 600; }
+.goals-line .muted { color: var(--muted); }

@@ -11,6 +11,7 @@ results so the backtest covers the latest matches (it takes a few seconds).
 """
 
 import sqlite3
+from pathlib import Path
 
 from model import backtest, load_games
 
@@ -23,6 +24,7 @@ HELD_OUT_FROM = 2021  # settings were tuned on 2016/17-2020/21; 2021/22 onward i
 
 def main() -> None:
     conn = sqlite3.connect(DB_PATH)
+    conn.executescript(Path("schema.sql").read_text())  # adds any tables an older database is missing
     games = load_games(conn)
     results = backtest(games, start_season=START_SEASON)
 
@@ -31,16 +33,26 @@ def main() -> None:
         for r in results.itertuples()
         for outcome in ("home", "draw", "away")
     ]
+    goals = [(r.id, BACKTEST_NAME, BACKTEST_VERSION, float(r.exp_home), float(r.exp_away))
+             for r in results.itertuples()]
     # Replace the previous backtest run entirely, in one transaction.
     with conn:
-        conn.execute("DELETE FROM predictions WHERE model_name = ? AND model_version = ?",
-                     (BACKTEST_NAME, BACKTEST_VERSION))
+        for table in ("predictions", "prediction_goals"):
+            conn.execute(f"DELETE FROM {table} WHERE model_name = ? AND model_version = ?",
+                         (BACKTEST_NAME, BACKTEST_VERSION))
         conn.executemany(
             """
             INSERT INTO predictions (game_id, model_name, model_version, outcome, probability)
             VALUES (?, ?, ?, ?, ?)
             """,
             rows,
+        )
+        conn.executemany(
+            """
+            INSERT INTO prediction_goals (game_id, model_name, model_version, exp_home, exp_away)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            goals,
         )
     conn.close()
     print(f"Saved backtest predictions for {len(results)} matches since {START_SEASON}/{(START_SEASON + 1) % 100:02d}.")

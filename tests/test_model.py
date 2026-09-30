@@ -91,3 +91,28 @@ def test_scores_for_perfect_and_uninformed_forecasts():
     assert df["a_logloss"].max() == pytest.approx(0.0)
     assert df["a_brier"].max() == pytest.approx(0.0)
     assert df["b_logloss"].mean() == pytest.approx(np.log(3))
+
+
+def test_goal_markets_are_consistent():
+    from scipy.stats import poisson
+    from model import goal_markets, scoreline_grid
+
+    for exp_home, exp_away in [(1.4, 1.2), (2.8, 0.6), (0.7, 0.9)]:
+        grid = scoreline_grid(exp_home, exp_away)
+        m = goal_markets(grid)
+        assert m["home"] + m["draw"] + m["away"] == pytest.approx(1.0)
+        for line in (1.5, 2.5, 3.5):
+            assert m[f"over_{line}"] + m[f"under_{line}"] == pytest.approx(1.0)
+        assert m["over_1.5"] > m["over_2.5"] > m["over_3.5"]
+        # With no draw adjustment, total goals follow a Poisson distribution with the combined average.
+        assert m["over_2.5"] == pytest.approx(1 - poisson.cdf(2, exp_home + exp_away), abs=1e-5)
+        scores = [p for _, _, p in m["top_scores"]]
+        assert scores == sorted(scores, reverse=True)
+        assert scores[0] == pytest.approx(grid.max())
+
+
+def test_predict_includes_goal_markets(fitted):
+    fit, _ = fitted
+    teams = list(fit["ratings"].index)
+    p = predict(fit, teams[0], teams[1])
+    assert {"over_2.5", "under_2.5", "btts", "top_scores", "exp_home", "exp_away"} <= set(p)

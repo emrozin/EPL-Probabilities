@@ -40,7 +40,8 @@ def test_imports_premier_league_fixtures_only_and_hands_over_to_results(project,
 
     assert "Skipped Wrexham v Arsenal" in out  # unknown team: not silently created
     assert conn.execute("SELECT COUNT(*) FROM teams").fetchone()[0] == 2
-    assert conn.execute("SELECT season, date, status FROM games").fetchall() == [(2026, "2026-10-03", "scheduled")]
+    assert conn.execute("SELECT season, date, status, kickoff FROM games").fetchall() == [
+        (2026, "2026-10-03", "scheduled", "15:00")]
     assert conn.execute("SELECT COUNT(*) FROM odds WHERE is_closing = 0").fetchone()[0] == 6
 
     # When the result arrives, the same game row becomes final rather than a duplicate appearing.
@@ -48,3 +49,15 @@ def test_imports_premier_league_fixtures_only_and_hands_over_to_results(project,
     conn.commit()
     assert conn.execute("SELECT COUNT(*) FROM games").fetchone()[0] == 1
     assert conn.execute("SELECT status, home_score FROM games WHERE id = ?", (game_id,)).fetchone() == ("final", 2)
+
+
+def test_older_databases_get_the_kickoff_column(project):
+    """Databases created before kickoff times were stored are upgraded in place."""
+    conn = sqlite3.connect(project / "data" / "sports.db")
+    old_schema = open("schema.sql").read().replace(
+        "    kickoff       TEXT,                   -- UK local time 'HH:MM', when known (from fixtures.csv)\n", "")
+    conn.executescript(old_schema)
+    assert "kickoff" not in {row[1] for row in conn.execute("PRAGMA table_info(games)")}
+    import_fixtures.ensure_kickoff_column(conn)
+    import_fixtures.ensure_kickoff_column(conn)  # safe to run twice
+    assert "kickoff" in {row[1] for row in conn.execute("PRAGMA table_info(games)")}

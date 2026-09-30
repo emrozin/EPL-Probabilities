@@ -94,9 +94,14 @@ def load_season(season: int) -> pd.DataFrame:
 
     if not cache_file.exists() or season == LAST_SEASON:
         url = f"https://www.football-data.co.uk/mmz4281/{season_code(season)}/E0.csv"
-        response = requests.get(url, timeout=30)
-        response.raise_for_status()  # throws an exception on a 404 etc.
-        cache_file.write_bytes(response.content)
+        try:
+            response = requests.get(url, timeout=30)
+            response.raise_for_status()  # throws an exception on a 404 etc.
+            cache_file.write_bytes(response.content)
+        except requests.RequestException as err:
+            if not cache_file.exists():
+                raise
+            print(f"  Couldn't download the latest file ({err}); using the copy saved earlier.")
 
     text = cache_file.read_bytes().decode("utf-8-sig", errors="replace")
 

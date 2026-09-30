@@ -13,6 +13,7 @@ once; the current season is refreshed on every run. Safe to re-run.
 
 import json
 import sqlite3
+import sys
 import time
 from pathlib import Path
 
@@ -46,8 +47,14 @@ def fetch_season(season: int) -> list[dict]:
     # This header marks the request as the page's own data request (AJAX);
     # without it the endpoint doesn't return the JSON.
     headers = {**HEADERS, "X-Requested-With": "XMLHttpRequest"}
-    response = requests.get(url, headers=headers, timeout=30)
-    response.raise_for_status()
+    try:
+        response = requests.get(url, headers=headers, timeout=30)
+        response.raise_for_status()
+    except requests.RequestException as err:
+        if not cache_file.exists():
+            raise
+        print(f"  Couldn't download the latest data ({err}); using the copy saved earlier.")
+        return json.loads(cache_file.read_text())
 
     try:
         payload = response.json()
@@ -169,6 +176,10 @@ def main() -> None:
             print("  " + line)
     if skipped:
         print(f"\n{len(skipped)} season(s) skipped, so nothing was imported for them: {', '.join(skipped)}")
+        if len(skipped) == LAST_SEASON - FIRST_SEASON + 1:
+            # Every season failed: Understat is unreachable or has changed. Stop the update rather
+            # than let the model quietly fall back to goals-only for every match.
+            sys.exit(1)
     elif not (unknown_teams or unlinked or score_mismatches):
         print("\nAll played matches linked, and every score agrees.")
 

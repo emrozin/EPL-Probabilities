@@ -3,6 +3,9 @@
 Used by the notebook and the website:
     load_games(conn)     finished matches, with Understat xG where available
     load_market(conn)    market probabilities (closing or pre-match) with the margin removed
+    load_totals(conn)    market probability of over 2.5 goals, margin removed
+    scoreline_grid(...)  probability of every exact score, from each side's expected goals
+    goal_markets(grid)   home/draw/away, over/under, both teams to score, likeliest scores
     fit_poisson(...)     fit team attack/defense ratings
     predict(...)         home/draw/away probabilities for one match
     backtest(...)        walk-forward backtest
@@ -74,6 +77,31 @@ def load_market(conn, closing=True):
     """, conn, params=(1 if closing else 0,))
 
 
+def load_totals(conn, closing=True, line=2.5):
+    """Over/under probability per game: Pinnacle, else Betfair Exchange, margin removed."""
+    return pd.read_sql("""
+        WITH totals AS (
+            SELECT game_id, bookmaker,
+                   MAX(CASE WHEN outcome = 'over'  THEN 1.0 / price END) AS o,
+                   MAX(CASE WHEN outcome = 'under' THEN 1.0 / price END) AS u
+            FROM odds
+            WHERE market = 'total' AND line = ? AND is_closing = ?
+              AND bookmaker IN ('Pinnacle', 'Betfair Exchange')
+            GROUP BY game_id, bookmaker
+            HAVING COUNT(*) = 2
+        ),
+        ranked AS (
+            SELECT *, ROW_NUMBER() OVER (
+                          PARTITION BY game_id
+                          ORDER BY bookmaker = 'Pinnacle' DESC) AS rn
+            FROM totals
+        )
+        SELECT game_id AS id, bookmaker AS totals_benchmark, o / (o + u) AS mkt_over
+        FROM ranked
+        WHERE rn = 1
+    """, conn, params=(line, 1 if closing else 0))
+
+
 def fit_poisson(train, as_of, half_life_days=HALF_LIFE_DAYS, shrinkage=SHRINKAGE, xg_weight=XG_WEIGHT):
     """Fit attack/defense ratings, base rate and home advantage by weighted maximum likelihood."""
     teams = sorted(set(train["home"]) | set(train["away"]))
@@ -134,12 +162,8 @@ def fit_poisson(train, as_of, half_life_days=HALF_LIFE_DAYS, shrinkage=SHRINKAGE
     }
 
 
-def predict(model, home, away, max_goals=10, rho=RHO):
-    """Home/draw/away probabilities, expected goals, and the full scoreline grid."""
-    r = model["ratings"]
-    exp_home = model["base"] * model["home_adv"] * r.loc[home, "attack"] / r.loc[away, "defense"]
-    exp_away = model["base"] * r.loc[away, "attack"] / r.loc[home, "defense"]
-
+def scoreline_grid(exp_home, exp_away, max_goals=15, rho=RHO):
+    """grid[i, j] = probability the home side scores i and the away side j."""
     goals = np.arange(max_goals + 1)
     grid = np.outer(poisson.pmf(goals, exp_home), poisson.pmf(goals, exp_away))
 
@@ -149,17 +173,39 @@ def predict(model, home, away, max_goals=10, rho=RHO):
     grid[1, 0] *= 1 + exp_away * rho
     grid[1, 1] *= 1 - rho
 
-    # The grid stops at max_goals, so rescale it to cover the tiny chance of more goals than that.
-    grid /= grid.sum()
+    # The grid stops at max_goals (15 per side, far beyond any real score), so rescale it to cover
+    # the vanishingly small chance of more goals than that.
+    return grid / grid.sum()
 
-    return {
-        "exp_home": exp_home,
-        "exp_away": exp_away,
+
+TOTAL_LINES = (1.5, 2.5, 3.5)
+
+
+def goal_markets(grid, top=5):
+    """Every market that follows from a scoreline grid."""
+    n = grid.shape[0]
+    total_goals = np.add.outer(np.arange(n), np.arange(n))
+    markets = {
         "home": np.tril(grid, -1).sum(),
         "draw": np.trace(grid),
         "away": np.triu(grid, 1).sum(),
-        "grid": grid,
+        "btts": grid[1:, 1:].sum(),                       # both teams score
     }
+    for line in TOTAL_LINES:
+        markets[f"over_{line}"] = grid[total_goals > line].sum()
+        markets[f"under_{line}"] = 1 - markets[f"over_{line}"]
+    order = np.argsort(grid, axis=None)[::-1][:top]
+    markets["top_scores"] = [(int(i), int(j), float(grid[i, j])) for i, j in zip(*np.unravel_index(order, grid.shape))]
+    return markets
+
+
+def predict(model, home, away, max_goals=15, rho=RHO):
+    """Expected goals, every goal market, and the full scoreline grid for one match."""
+    r = model["ratings"]
+    exp_home = model["base"] * model["home_adv"] * r.loc[home, "attack"] / r.loc[away, "defense"]
+    exp_away = model["base"] * r.loc[away, "attack"] / r.loc[home, "defense"]
+    grid = scoreline_grid(exp_home, exp_away, max_goals, rho)
+    return {"exp_home": exp_home, "exp_away": exp_away, "grid": grid, **goal_markets(grid)}
 
 
 def backtest(games, start_season, rho=RHO, **model_settings):
@@ -186,7 +232,8 @@ def backtest(games, start_season, rho=RHO, **model_settings):
             else:
                 result = "away"
             rows.append({"id": g.id, "season": g.season, "result": result,
-                         "model_home": p["home"], "model_draw": p["draw"], "model_away": p["away"]})
+                         "model_home": p["home"], "model_draw": p["draw"], "model_away": p["away"],
+                         "exp_home": p["exp_home"], "exp_away": p["exp_away"]})
     return pd.DataFrame(rows)
 
 

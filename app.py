@@ -24,7 +24,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from model import TRAINING_YEARS, add_scores, fit_poisson, load_games, load_market
+from model import (TRAINING_YEARS, add_scores, fit_poisson, goal_markets, load_games, load_market,
+                   load_totals, scoreline_grid)
 from predict_upcoming import MODEL_NAME, MODEL_VERSION
 from run_backtest import BACKTEST_NAME, BACKTEST_VERSION, HELD_OUT_FROM, START_SEASON
 
@@ -142,10 +143,20 @@ def load_predictions(conn, model_name: str, model_version: str) -> pd.DataFrame:
     """, conn, params=(model_name, model_version))
 
 
+def load_goals(conn, model_name: str, model_version: str) -> pd.DataFrame:
+    """One row per game: the prediction's expected goals (exp_home, exp_away)."""
+    return pd.read_sql("""
+        SELECT game_id AS id, exp_home, exp_away FROM prediction_goals
+        WHERE model_name = ? AND model_version = ?
+    """, conn, params=(model_name, model_version))
+
+
 def load_best_predictions(conn) -> pd.DataFrame:
     """A prediction saved before kickoff where one exists, otherwise the backtest's."""
-    live = load_predictions(conn, MODEL_NAME, MODEL_VERSION)
-    back = load_predictions(conn, BACKTEST_NAME, BACKTEST_VERSION)
+    live = load_predictions(conn, MODEL_NAME, MODEL_VERSION).merge(
+        load_goals(conn, MODEL_NAME, MODEL_VERSION), on="id", how="left")
+    back = load_predictions(conn, BACKTEST_NAME, BACKTEST_VERSION).merge(
+        load_goals(conn, BACKTEST_NAME, BACKTEST_VERSION), on="id", how="left")
     live["source"] = "Saved before kickoff"
     back["source"] = "Backtest"
     return pd.concat([live, back[~back["id"].isin(live["id"])]], ignore_index=True)
@@ -183,7 +194,9 @@ def data() -> dict:
                 finished=load_finished(conn),
                 predictions=load_best_predictions(conn),
                 backtest=load_predictions(conn, BACKTEST_NAME, BACKTEST_VERSION),
+                backtest_goals=load_goals(conn, BACKTEST_NAME, BACKTEST_VERSION),
                 closing=load_market(conn, closing=True),
+                totals=load_totals(conn, closing=True),
                 games=load_games(conn),
             )
     return _cache
@@ -202,6 +215,26 @@ def season_options(seasons, selected, url) -> list[dict]:
     """For the season picker: newest first, each with its page address."""
     return [{"label": season_label(s), "url": url(s), "selected": s == selected}
             for s in sorted(seasons, reverse=True)]
+
+
+def pct(p: float) -> str:
+    """0.083 -> '8.3', 0.42 -> '42': one decimal for small chances, where it matters."""
+    return f"{p * 100:.1f}" if p < 0.095 else f"{round(p * 100)}"
+
+
+def goals_info(exp_home, exp_away, market_over=None, score=None) -> dict:
+    """Over/under 2.5, the likeliest scores, and (for a finished match) the chance of its exact score."""
+    info = {"over": None, "market_over": None, "top_scores": [], "exact_pct": None}
+    if exp_home is not None and pd.notna(exp_home) and pd.notna(exp_away):
+        grid = scoreline_grid(exp_home, exp_away)
+        markets = goal_markets(grid, top=3)
+        info["over"] = round(markets["over_2.5"] * 100)
+        info["top_scores"] = [{"score": f"{i}\u2013{j}", "pct": pct(prob)} for i, j, prob in markets["top_scores"]]
+        if score is not None and max(score) < grid.shape[0]:
+            info["exact_pct"] = pct(grid[score])
+    if market_over is not None and pd.notna(market_over):
+        info["market_over"] = round(market_over * 100)
+    return info
 
 
 def match_card(m) -> dict:
@@ -223,6 +256,10 @@ def match_card(m) -> dict:
     if has_market:
         card["market"] = percentages(m.mkt_home, m.mkt_draw, m.mkt_away)
         card["market_actual"] = round(getattr(m, f"mkt_{m.result}") * 100)
+    card["total_goals"] = int(m.home_score + m.away_score)
+    card.update(goals_info(getattr(m, "exp_home", None) if has_prediction else None,
+                           getattr(m, "exp_away", None), getattr(m, "mkt_over", None),
+                           (int(m.home_score), int(m.away_score))))
     return card
 
 
@@ -299,20 +336,24 @@ def upcoming(request: Request):
             SELECT g.id, g.date, h.name AS home, a.name AS away,
                    MAX(CASE WHEN p.outcome = 'home' THEN p.probability END) AS model_home,
                    MAX(CASE WHEN p.outcome = 'draw' THEN p.probability END) AS model_draw,
-                   MAX(CASE WHEN p.outcome = 'away' THEN p.probability END) AS model_away
+                   MAX(CASE WHEN p.outcome = 'away' THEN p.probability END) AS model_away,
+                   MAX(pg.exp_home) AS exp_home, MAX(pg.exp_away) AS exp_away
             FROM games g
             JOIN leagues l     ON l.id = g.league_id
             JOIN teams h       ON h.id = g.home_team_id
             JOIN teams a       ON a.id = g.away_team_id
             JOIN predictions p ON p.game_id = g.id
                               AND p.model_name = ? AND p.model_version = ?
+            LEFT JOIN prediction_goals pg ON pg.game_id = g.id
+                              AND pg.model_name = p.model_name AND pg.model_version = p.model_version
             WHERE l.code = 'EPL' AND g.status = 'scheduled' AND g.date >= ?
             GROUP BY g.id
             ORDER BY g.date, h.name
         """, conn, params=(MODEL_NAME, MODEL_VERSION, today))
         market = load_market(conn, closing=False)
+        totals = load_totals(conn, closing=False)
 
-    matches = matches.merge(market, on="id", how="left")
+    matches = matches.merge(market, on="id", how="left").merge(totals, on="id", how="left")
     days = []
     for match_date, group in matches.groupby("date", sort=True):
         day_matches = []
@@ -323,6 +364,7 @@ def upcoming(request: Request):
                 "away": m.away,
                 "model": percentages(m.model_home, m.model_draw, m.model_away),
                 "market": percentages(m.mkt_home, m.mkt_draw, m.mkt_away) if has_market else None,
+                **goals_info(m.exp_home, m.exp_away, m.mkt_over),
             })
         days.append({"label": day_label(match_date), "matches": day_matches})
 
@@ -358,7 +400,8 @@ def results_page(request: Request, week: str | None):
         raise HTTPException(status_code=404)
     position = weeks.index(week)
 
-    wk = df[df["week"] == week].merge(d["closing"], on="id", how="left").sort_values(["date", "home"])
+    wk = (df[df["week"] == week].merge(d["closing"], on="id", how="left")
+                                 .merge(d["totals"], on="id", how="left").sort_values(["date", "home"]))
     days = [{"label": day_label(day), "matches": [match_card(m) for m in group.itertuples()]}
             for day, group in wk.groupby("date", sort=True)]
 
@@ -460,6 +503,7 @@ def team_page(request: Request, slug: str, season: int | str | None):
     shown = played[played["season"].isin(seasons if show_all else [season])]
     matches = (shown.merge(d["predictions"], on="id", how="left")
                     .merge(d["closing"], on="id", how="left")
+                    .merge(d["totals"], on="id", how="left")
                     .sort_values("date", ascending=False))
 
     # Group the matches by season, newest first (a single group when showing one season).
@@ -553,9 +597,45 @@ def backtest_page(request: Request):
         "active": "backtest",
         "seasons": seasons,
         "headline": headline,
+        "goals": goals_backtest(d),
         "development": [{"label": label, "value": f"{value:.4f}"} for label, value in DEVELOPMENT],
         "tuned_through": season_label(HELD_OUT_FROM - 1),
     })
+
+
+def goals_backtest(d: dict) -> dict | None:
+    """Over/under 2.5 and exact scores on the held-out seasons: model vs the closing market."""
+    df = d["finished"].merge(d["backtest_goals"], on="id")
+    df = df[df["season"] >= HELD_OUT_FROM].merge(d["totals"], on="id", how="left")
+    if df.empty:
+        return None
+    over_p, exact_p, likeliest_hit = [], [], []
+    for r in df.itertuples():
+        grid = scoreline_grid(r.exp_home, r.exp_away)
+        markets = goal_markets(grid, top=1)
+        over_p.append(markets["over_2.5"])
+        last = grid.shape[0] - 1
+        exact_p.append(grid[min(r.home_score, last), min(r.away_score, last)])
+        i, j, _ = markets["top_scores"][0]
+        likeliest_hit.append(i == r.home_score and j == r.away_score)
+    df["model_over"] = over_p
+    went_over = (df["home_score"] + df["away_score"]) > 2.5
+
+    def typical(p_over, mask):
+        p_actual = np.where(went_over[mask], p_over[mask], 1 - p_over[mask])
+        return typical_probability(-np.log(p_actual).mean())
+
+    compared = df["mkt_over"].notna()
+    return {
+        "games": len(df),
+        "compared": int(compared.sum()),
+        "model_typical": typical(df["model_over"], compared) if compared.any() else None,
+        "market_typical": typical(df["mkt_over"], compared) if compared.any() else None,
+        "over_rate": round(went_over.mean() * 100),
+        "exact_typical": typical_probability(-np.log(np.array(exact_p)).mean()),
+        "likeliest_hit": round(np.mean(likeliest_hit) * 100),
+        "from": season_label(HELD_OUT_FROM),
+    }
 
 
 @app.get("/ratings/", response_class=HTMLResponse)

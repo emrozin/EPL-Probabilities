@@ -3,6 +3,7 @@
 Usage:
     python update.py            # update data and predictions
     python update.py --build    # ...and rebuild the static site in docs/
+    python update.py --record   # ...and update the official prediction record (the automated run uses this)
 
 Steps:
     1. import_epl.py        new results, stats and odds from football-data.co.uk
@@ -31,13 +32,13 @@ STEPS = [
 BUILD_STEP = ("build_site.py", "Static website (docs/)")
 
 
-def run(script: str, label: str, number: int, total: int) -> float:
+def run(script: str, label: str, number: int, total: int, args: list[str]) -> float:
     """Run one step with this project's Python, showing its output. Returns seconds taken."""
     print(f"\n[{number}/{total}] {label}  ({script})")
     print("-" * 60, flush=True)
     started = time.time()
     # sys.executable is the Python running this script, i.e. the one in .venv
-    result = subprocess.run([sys.executable, script])
+    result = subprocess.run([sys.executable, script, *args])
     elapsed = time.time() - started
     if result.returncode != 0:
         print("-" * 60)
@@ -53,7 +54,11 @@ def main() -> None:
     steps = STEPS + ([BUILD_STEP] if "--build" in sys.argv[1:] else [])
 
     started = time.time()
-    timings = [(label, run(script, label, i, len(steps))) for i, (script, label) in enumerate(steps, start=1)]
+    record = ["--record"] if "--record" in sys.argv[1:] else []
+    timings = [
+        (label, run(script, label, i, len(steps), record if script == "predict_upcoming.py" else []))
+        for i, (script, label) in enumerate(steps, start=1)
+    ]
 
     print("\n" + "=" * 60)
     print("Update complete.\n")

@@ -82,3 +82,10 @@ def test_league_table_ranks_by_points_then_goal_difference_then_goals():
     assert table.loc["A", "gd"] == 1 and table.loc["B", "gd"] == -1
     assert list(table.sort_values("position").index) == ["A", "B", "C"]  # level on points: A's better GD wins
     assert table.loc["A", "form"] == ["W", "L", "D"]
+
+
+def test_goals_markets_appear_on_the_site(client):
+    assert "Over 2.5 goals" in client.get("/results/").text
+    assert "Chance of a" in client.get("/team/team-a/").text
+    backtest = client.get("/backtest/").text
+    assert "Over/under 2.5 goals and exact scores" in backtest

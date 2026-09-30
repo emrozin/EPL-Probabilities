@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS games (
     away_score    INTEGER,
     status        TEXT NOT NULL DEFAULT 'scheduled'
                   CHECK (status IN ('scheduled', 'final')),
+    kickoff       TEXT,                   -- UK local time 'HH:MM', when known (from fixtures.csv)
     UNIQUE (league_id, season, date, home_team_id, away_team_id)
 );
 
@@ -98,6 +99,18 @@ CREATE TABLE IF NOT EXISTS game_xg (
     away_xg          REAL NOT NULL,
     source_match_id  TEXT,                -- the source's own id for the match
     PRIMARY KEY (game_id, source)
+);
+
+-- Each prediction's expected goals. Every goals market (over/under, exact scores,
+-- both teams to score) can be recalculated exactly from these two numbers.
+CREATE TABLE IF NOT EXISTS prediction_goals (
+    game_id        INTEGER NOT NULL REFERENCES games(id),
+    model_name     TEXT NOT NULL,
+    model_version  TEXT NOT NULL,
+    exp_home       REAL NOT NULL,
+    exp_away       REAL NOT NULL,
+    created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (game_id, model_name, model_version)
 );
 
 CREATE TABLE IF NOT EXISTS predictions (
