@@ -1,13 +1,5 @@
 {% extends "base.html" %}
-
-{% macro split_bar(p, kind) %}
-  <div class="bar bar-{{ kind }}" role="img"
-       aria-label="Home win {{ p.home }}%, draw {{ p.draw }}%, away win {{ p.away }}%">
-    <span class="seg seg-home" style="flex-basis: {{ p.home }}%">{% if kind == 'model' and p.home >= 12 %}{{ p.home }}%{% endif %}</span>
-    <span class="seg seg-draw" style="flex-basis: {{ p.draw }}%">{% if kind == 'model' and p.draw >= 12 %}{{ p.draw }}%{% endif %}</span>
-    <span class="seg seg-away" style="flex-basis: {{ p.away }}%">{% if kind == 'model' and p.away >= 12 %}{{ p.away }}%{% endif %}</span>
-  </div>
-{% endmacro %}
+{% from "macros.html" import split_bar %}
 
 {% block content %}
 <div class="intro">
@@ -48,8 +40,8 @@
 {% else %}
   <section class="empty">
     <h2>No upcoming matches yet</h2>
-    <p>The next round appears here once bookmakers' odds are collected: Friday afternoon for weekend matches, Tuesday afternoon for midweek ones. In the meantime, see how every team rates right now.</p>
-    <p><a class="button" href="/ratings">See team ratings</a></p>
+    <p>The next round appears here once bookmakers' odds are collected: Friday afternoon for weekend matches, Tuesday afternoon for midweek ones. In the meantime, see how the model did last week.</p>
+    <p><a class="button" href="/results">See recent results</a></p>
   </section>
 {% endif %}
 {% endblock %}

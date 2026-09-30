@@ -1,0 +1,12 @@
+{# The split bar: one bar divided into home / draw / away by probability.
+   kind: 'model' (thick, with numbers) or 'market' (thin).
+   actual: for finished matches, the outcome that happened; the others are shown in soft tints. #}
+{% macro split_bar(p, kind, actual=None) %}
+  <div class="bar bar-{{ kind }}" role="img"
+       aria-label="{{ 'Model' if kind == 'model' else 'Market' }}: home win {{ p.home }}%, draw {{ p.draw }}%, away win {{ p.away }}%">
+    {% for outcome in ['home', 'draw', 'away'] %}
+      <span class="seg seg-{{ outcome }}{% if actual and actual != outcome %} seg-soft{% endif %}"
+            style="flex-basis: {{ p[outcome] }}%">{% if kind == 'model' and p[outcome] >= 12 %}{{ p[outcome] }}%{% endif %}</span>
+    {% endfor %}
+  </div>
+{% endmacro %}

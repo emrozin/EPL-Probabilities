@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Backtest | Premier League probabilities{% endblock %}
+
+{% block content %}
+<div class="intro">
+  <h1>How good is the model?</h1>
+  <p>Every week since 2016/17, the model was trained only on matches played before that week, then asked to predict that week's games. Its forecasts are compared with the closing betting market: the odds just before kickoff, with the bookmaker's margin removed, and widely considered the most accurate public forecast there is.</p>
+</div>
+
+{% if seasons %}
+<section class="headline">
+  <h2>On seasons it never saw during development</h2>
+  <p class="section-note">Model settings were chosen using 2016/17 to {{ tuned_through }}. These numbers cover {{ headline.from }} onward: {{ "{:,}".format(headline.games) }} matches.</p>
+  <div class="scorecard">
+    <div class="stat">
+      <p class="stat-value">{{ headline.model_typical }}%</p>
+      <p class="stat-label">Model's typical probability for the actual result</p>
+    </div>
+    <div class="stat">
+      <p class="stat-value stat-muted">{{ headline.market_typical }}%</p>
+      <p class="stat-label">Betting market's</p>
+    </div>
+    <div class="stat">
+      <p class="stat-value stat-muted">33.3%</p>
+      <p class="stat-label">Guessing one-third for every outcome</p>
+    </div>
+  </div>
+  <p class="note">The typical probability is log loss converted into a percentage: how much chance a forecast usually gave to what actually happened. Log loss punishes confident wrong forecasts heavily. The model scores {{ headline.model }} and the market {{ headline.market }}; lower is better.</p>
+</section>
+
+<section class="seasons">
+  <h2>Season by season</h2>
+  <p class="section-note">Log loss for each season, and how far behind (or ahead of) the market the model finished.</p>
+  <div class="table-wrap">
+    <table class="season-table">
+      <thead>
+        <tr>
+          <th scope="col">Season</th>
+          <th scope="col" class="num">Matches</th>
+          <th scope="col" class="num">Model</th>
+          <th scope="col" class="num">Market</th>
+          <th scope="col" class="gap-head"><span>&larr; Model better</span><span>Market better &rarr;</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in seasons %}
+        <tr{% if s.held_out %} class="held-out"{% endif %}>
+          <th scope="row">{{ s.label }}{% if not s.held_out %} <span class="tag">tuning</span>{% endif %}</th>
+          <td class="num">{{ s.games }}</td>
+          <td class="num">{{ s.model }}</td>
+          <td class="num">{{ s.market }}</td>
+          <td class="gap-cell">
+            <div class="gap-track" role="img" aria-label="{{ 'Market' if s.market_better else 'Model' }} better by {{ s.gap }}">
+              <span class="gap-bar {{ 'gap-market' if s.market_better else 'gap-model' }}" style="width: {{ s.width / 2 }}%"></span>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="note">The market stays ahead in most seasons: closing odds reflect injuries, confirmed lineups and professional bettors' information that a model built from past results can't see. The early part of the current season rests on few matches, so its numbers swing a lot.</p>
+</section>
+
+<section class="development">
+  <h2>What improved the model</h2>
+  <p class="section-note">Log loss on the held-out seasons as the model was developed (measured on 1,921 matches, September 2026).</p>
+  <table class="dev-table">
+    <tbody>
+      {% for d in development %}
+      <tr{% if loop.last %} class="reference"{% endif %}>
+        <th scope="row">{{ d.label }}</th>
+        <td class="num">{{ d.value }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="note">Learning from a 50/50 blend of actual goals and expected goals (xG) made the biggest difference, closing 27% of the gap between the goals-only model and the market. A well-known correction for low-scoring draws (Dixon&ndash;Coles) was also tested and made forecasts slightly worse, so it isn't used.</p>
+</section>
+{% else %}
+  <section class="empty">
+    <h2>No backtest results yet</h2>
+    <p>Run <code>python run_backtest.py</code> to generate them.</p>
+  </section>
+{% endif %}
+{% endblock %}

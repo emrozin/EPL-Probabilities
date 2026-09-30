@@ -51,7 +51,8 @@ a:focus-visible, .button:focus-visible {
   color: var(--ink);
   text-decoration: none;
 }
-.site-header nav { display: flex; gap: 1.5rem; }
+.site-header nav { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; }
+.site-header nav a { white-space: nowrap; }
 .site-header nav a {
   color: var(--muted);
   text-decoration: none;
@@ -208,4 +209,127 @@ h2 { font-size: 1.6rem; }
   .match { grid-template-columns: 1fr; }
   .teams { flex-direction: row; flex-wrap: wrap; gap: 0 0.5rem; }
   .team-home::after { content: " v"; color: var(--muted); font-weight: 500; }
+}
+
+/* ---------- Finished matches: outcomes that didn't happen, in soft tints ---------- */
+.seg-home.seg-soft { background: #c9d6ea; color: var(--ink); }
+.seg-draw.seg-soft { background: #e1e5e2; color: var(--muted); }
+.seg-away.seg-soft { background: #f2e2b4; color: var(--ink); }
+
+.teams-result { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.score {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.market-numbers strong { color: var(--ink); font-weight: 600; }
+.source {
+  margin-left: 0.5rem;
+  padding: 0.05rem 0.4rem;
+  font-size: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  white-space: nowrap;
+}
+
+/* ---------- Week navigation ---------- */
+.week-nav {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.week-nav a { font-weight: 500; text-decoration: none; white-space: nowrap; }
+.week-nav a:hover { text-decoration: underline; }
+.week-nav a:last-child { justify-self: end; }
+.week-label { margin: 0; font-weight: 600; text-align: center; }
+
+/* ---------- Scorecard ---------- */
+.scorecard {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 1rem 2rem;
+  padding: 1.25rem 0;
+  margin-bottom: 1.5rem;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.stat p { margin: 0; }
+.stat-value {
+  font-family: var(--font-display);
+  font-size: 2.6rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--home);
+  font-variant-numeric: tabular-nums;
+}
+.stat-value.stat-muted { color: var(--ink); }
+.stat-label { margin-top: 0.35rem !important; font-size: 0.95rem; color: var(--muted); max-width: 14rem; }
+
+/* ---------- Backtest page ---------- */
+.headline, .seasons, .development { margin-bottom: 3rem; }
+.section-note { color: var(--muted); max-width: 42rem; margin: 0 0 1rem; }
+
+.season-table, .dev-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.season-table th, .season-table td, .dev-table th, .dev-table td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+.season-table thead th { font-size: 0.9rem; font-weight: 600; color: var(--muted); vertical-align: bottom; }
+.season-table tbody th { font-weight: 600; white-space: nowrap; }
+.season-table .num, .dev-table .num { text-align: right; }
+.season-table tr:not(.held-out) { color: var(--muted); }
+.tag {
+  margin-left: 0.35rem;
+  padding: 0 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+}
+
+.gap-head { min-width: 14rem; }
+.gap-head span { display: inline-block; width: 50%; font-weight: 500; }
+.gap-head span:last-child { text-align: right; }
+.gap-cell { width: 40%; min-width: 14rem; }
+.gap-track {
+  position: relative;
+  height: 1rem;
+  background: linear-gradient(var(--line), var(--line)) center / 1px 100% no-repeat;
+}
+.gap-bar { position: absolute; top: 0.15rem; bottom: 0.15rem; }
+.gap-market { left: 50%; background: var(--draw); }
+.gap-model { right: 50%; background: var(--home); }
+
+.dev-table { max-width: 36rem; }
+.dev-table tbody th { font-weight: 500; }
+.dev-table tr:nth-last-child(2) th, .dev-table tr:nth-last-child(2) td { font-weight: 700; }
+.dev-table tr.reference { color: var(--muted); }
+
+code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  background: var(--surface);
+  padding: 0.1rem 0.3rem;
+}
+
+@media (max-width: 40rem) {
+  .score { font-size: 1.4rem; }
+  .stat-value { font-size: 2.2rem; }
+}
+
+@media (max-width: 40rem) {
+  .site-header nav { gap: 0.5rem 1.1rem; }
+  /* Week label on its own line, previous/next links underneath */
+  .week-nav { grid-template-columns: 1fr 1fr; }
+  .week-label { grid-column: 1 / -1; grid-row: 1; }
 }
