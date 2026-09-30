@@ -1,24 +1,20 @@
 {% extends "base.html" %}
-{% from "macros.html" import finished_match %}
+{% from "macros.html" import finished_match, season_picker %}
 {% block title %}{{ team }} | Premier League probabilities{% endblock %}
 
 {% block content %}
 <div class="intro">
-  <p class="eyebrow"><a href="/table">Premier League table</a></p>
+  <p class="eyebrow"><a href="{{ table_url }}">{% if show_all %}Premier League table{% else %}{{ season }} table{% endif %}</a></p>
   <h1>{{ team }}</h1>
+  {% if show_all %}
+  <p>Every Premier League match since {{ first_season }}: {{ record.played }} played, {{ record.won }} won, {{ record.drawn }} drawn, {{ record.lost }} lost.</p>
+  {% else %}
   <p>{{ position }} in {{ season }}{% if is_current %} so far{% endif %}: {{ record.played }} played, {{ record.won }} won, {{ record.drawn }} drawn, {{ record.lost }} lost, {{ record.points }} points, goal difference {{ record.gd }}.</p>
+  {% endif %}
   {% if ratings %}
   <p>Current model rating: scores <span class="{{ ratings.scores_class }}">{{ ratings.scores }}</span> and concedes <span class="{{ ratings.concedes_class }}">{{ ratings.concedes }}</span> compared with an average Premier League team.</p>
   {% endif %}
-  {% if seasons|length > 1 %}
-  <form class="season-picker" method="get" action="{{ team_url(team) }}">
-    <label for="season">Season</label>
-    <select id="season" name="season" onchange="this.form.submit()">
-      {% for s in seasons %}<option value="{{ s.value }}" {% if s.value == selected %}selected{% endif %}>{{ s.label }}</option>{% endfor %}
-    </select>
-    <noscript><button type="submit">Show</button></noscript>
-  </form>
-  {% endif %}
+  {% if seasons|length > 1 %}{{ season_picker(seasons) }}{% endif %}
 </div>
 
 {% if summary %}
@@ -38,10 +34,12 @@
 </div>
 {% endif %}
 
+{% for group in groups %}
 <section class="day">
-  <h2>Matches, most recent first</h2>
+  <h2>{% if show_all %}{{ group.label }}{% else %}Matches, most recent first{% endif %}</h2>
   <ul class="matches">
-    {% for m in matches %}{{ finished_match(m, current_team=team) }}{% endfor %}
+    {% for m in group.matches %}{{ finished_match(m, current_team=team) }}{% endfor %}
   </ul>
 </section>
+{% endfor %}
 {% endblock %}

@@ -5,3 +5,4 @@ jupyter
 fastapi
 uvicorn
 jinja2
+httpx

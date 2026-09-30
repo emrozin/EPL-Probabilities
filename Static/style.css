@@ -415,3 +415,8 @@ code {
   .league th, .league td { padding: 0.5rem 0.4rem; }
   .league tbody th { font-size: 1.05rem; }
 }
+
+/* ---------- Finished matches: winner bold, loser grey, draws level ---------- */
+.teams.finished .team-home, .teams.finished .team-away { font-weight: 500; color: var(--ink); }
+.teams.finished .winner { font-weight: 700; color: var(--ink); }
+.teams.finished .loser { color: var(--muted); }

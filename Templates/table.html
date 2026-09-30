@@ -1,20 +1,12 @@
 {% extends "base.html" %}
-{% from "macros.html" import team_link, outcome_badge %}
+{% from "macros.html" import outcome_badge, season_picker %}
 {% block title %}Table | Premier League probabilities{% endblock %}
 
 {% block content %}
 <div class="intro">
   <h1>{% if is_current %}Premier League table{% else %}{{ season }} final table{% endif %}</h1>
   <p>{% if has_xg %}Alongside the usual columns, expected goals (xG) show the quality of chances each team created and allowed. A team whose goals run well ahead of its xG may be riding luck that won't last.{% else %}Standings for {{ season }}.{% endif %}</p>
-  {% if seasons|length > 1 %}
-  <form class="season-picker" method="get" action="/table">
-    <label for="season">Season</label>
-    <select id="season" name="season" onchange="this.form.submit()">
-      {% for s in seasons %}<option value="{{ s.value }}" {% if s.value == selected %}selected{% endif %}>{{ s.label }}</option>{% endfor %}
-    </select>
-    <noscript><button type="submit">Show</button></noscript>
-  </form>
-  {% endif %}
+  {% if seasons|length > 1 %}{{ season_picker(seasons) }}{% endif %}
 </div>
 
 {% if rows %}
@@ -43,7 +35,7 @@
       {% for r in rows %}
       <tr class="{% if r.first_relegation %}relegation-line{% endif %}{% if r.relegation %} relegation{% endif %}">
         <td class="num pos">{{ r.position }}</td>
-        <th scope="row">{{ team_link(r.team) }}</th>
+        <th scope="row"><a class="team-link" href="{{ r.url }}">{{ r.team }}</a></th>
         <td class="num">{{ r.played }}</td>
         <td class="num">{{ r.won }}</td>
         <td class="num">{{ r.drawn }}</td>

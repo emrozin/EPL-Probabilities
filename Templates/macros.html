@@ -25,10 +25,13 @@
 {% macro finished_match(m, current_team=None) %}
   <li class="match">
     <div class="teams-result">
-      <p class="teams">
+      {# The winner is shown in bold and the loser in grey; for a draw, both look the same. #}
+      {% set home_class = {'home': 'winner', 'away': 'loser'}.get(m.result, 'level') %}
+      {% set away_class = {'away': 'winner', 'home': 'loser'}.get(m.result, 'level') %}
+      <p class="teams finished">
         {% if m.venue %}<span class="match-date">{{ m.date }} &middot; {{ m.venue }}</span>{% endif %}
-        <span class="team-home">{{ team_link(m.home, current_team) }}</span>
-        <span class="team-away">{{ team_link(m.away, current_team) }}</span>
+        <span class="team-home {{ home_class }}">{{ team_link(m.home, current_team) }}</span>
+        <span class="team-away {{ away_class }}">{{ team_link(m.away, current_team) }}</span>
       </p>
       <p class="score">{% if m.outcome %}{{ outcome_badge(m.outcome) }} {% endif %}{{ m.score }}</p>
     </div>
@@ -45,4 +48,14 @@
       {% endif %}
     </div>
   </li>
+{% endmacro %}
+
+{# Season picker: each option's value is that season's page, so it works on a static site. #}
+{% macro season_picker(seasons) %}
+  <div class="season-picker">
+    <label for="season">Season</label>
+    <select id="season" onchange="window.location.href = this.value">
+      {% for s in seasons %}<option value="{{ s.url }}" {% if s.selected %}selected{% endif %}>{{ s.label }}</option>{% endfor %}
+    </select>
+  </div>
 {% endmacro %}

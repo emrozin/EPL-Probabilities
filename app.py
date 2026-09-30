@@ -3,14 +3,18 @@
 Run locally:
     uvicorn app:app --reload
 then open http://127.0.0.1:8000 in a browser.
+
+build_site.py renders every page to static HTML for GitHub Pages. For that, links need
+a path prefix (the repository name), which comes from the SITE_BASE environment variable.
 """
 
 import math
+import os
+import re
 import sqlite3
 from contextlib import closing
 from datetime import date
 from pathlib import Path
-from urllib.parse import quote
 
 import numpy as np
 import pandas as pd
@@ -18,6 +22,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from model import TRAINING_YEARS, add_scores, fit_poisson, load_games, load_market
 from predict_upcoming import MODEL_NAME, MODEL_VERSION
@@ -25,6 +30,7 @@ from run_backtest import BACKTEST_NAME, BACKTEST_VERSION, HELD_OUT_FROM, START_S
 
 ROOT = Path(__file__).resolve().parent
 DB_PATH = ROOT / "data" / "sports.db"
+BASE = os.environ.get("SITE_BASE", "").rstrip("/")  # "" locally, "/epl-probabilities" on GitHub Pages
 
 # How each model version scored on the held-out seasons while it was being developed
 # (from poisson_model.ipynb, measured on 1,921 matches in September 2026).
@@ -41,12 +47,25 @@ app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
 templates = Jinja2Templates(directory=ROOT / "templates")
 
 
-def team_url(name: str) -> str:
-    """'Nott'm Forest' -> '/team/Nott%27m%20Forest'"""
-    return "/team/" + quote(name, safe="")
+def slugify(name: str) -> str:
+    """'Nott'm Forest' -> 'nottm-forest'"""
+    name = name.lower().replace("'", "").replace("&", "and")
+    return re.sub(r"[^a-z0-9]+", "-", name).strip("-")
+
+
+def team_url(name: str, season: int | None = None) -> str:
+    return f"{BASE}/team/{slugify(name)}/" + (f"{season}/" if season is not None else "")
 
 
 templates.env.globals["team_url"] = team_url
+templates.env.globals["base"] = BASE
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_error(request: Request, exc: StarletteHTTPException):
+    if exc.status_code == 404:
+        return templates.TemplateResponse(request, "404.html", {"active": None}, status_code=404)
+    return HTMLResponse(str(exc.detail), status_code=exc.status_code)
 
 
 # ---------------------------------------------------------------- helpers
@@ -150,6 +169,41 @@ def load_finished(conn) -> pd.DataFrame:
     return df
 
 
+_cache: dict = {}
+
+
+def data() -> dict:
+    """Everything the pages read, loaded once and reused until the database file changes."""
+    stamp = DB_PATH.stat().st_mtime
+    if _cache.get("stamp") != stamp:
+        with connect() as conn:
+            _cache.clear()
+            _cache.update(
+                stamp=stamp,
+                finished=load_finished(conn),
+                predictions=load_best_predictions(conn),
+                backtest=load_predictions(conn, BACKTEST_NAME, BACKTEST_VERSION),
+                closing=load_market(conn, closing=True),
+                games=load_games(conn),
+            )
+    return _cache
+
+
+def cached_ratings() -> dict:
+    """Current model ratings, refitted when the data or the date changes."""
+    d, today = data(), date.today().isoformat()
+    if d.get("ratings_day") != today:
+        d["ratings"] = current_ratings(d["games"], today)
+        d["ratings_day"] = today
+    return d["ratings"]
+
+
+def season_options(seasons, selected, url) -> list[dict]:
+    """For the season picker: newest first, each with its page address."""
+    return [{"label": season_label(s), "url": url(s), "selected": s == selected}
+            for s in sorted(seasons, reverse=True)]
+
+
 def match_card(m) -> dict:
     """Everything a finished-match row needs (m has game, prediction and market columns)."""
     has_prediction = pd.notna(m.model_home)
@@ -235,6 +289,7 @@ def rating_text(attack: float, defense: float) -> dict:
 
 
 # ---------------------------------------------------------------- pages
+# Every address ends with "/" so each page can be saved as <address>/index.html for static hosting.
 
 @app.get("/", response_class=HTMLResponse)
 def upcoming(request: Request):
@@ -274,53 +329,79 @@ def upcoming(request: Request):
     return templates.TemplateResponse(request, "upcoming.html", {"active": "upcoming", "days": days})
 
 
-@app.get("/results", response_class=HTMLResponse)
-def results(request: Request, week: str | None = None):
-    with connect() as conn:
-        finished = load_finished(conn)
-        predictions = load_best_predictions(conn)
-        market = load_market(conn, closing=True)
+def week_of(dates: pd.Series) -> pd.Series:
+    """The Monday starting each date's week, as 'YYYY-MM-DD'."""
+    return pd.to_datetime(dates).dt.to_period("W").dt.start_time.dt.strftime("%Y-%m-%d")
 
-    df = finished.merge(predictions, on="id")
+
+@app.get("/results/", response_class=HTMLResponse)
+def results_latest(request: Request):
+    return results_page(request, None)
+
+
+@app.get("/results/{week}/", response_class=HTMLResponse)
+def results_week(request: Request, week: str):
+    return results_page(request, week)
+
+
+def results_page(request: Request, week: str | None):
+    d = data()
+    df = d["finished"].merge(d["predictions"], on="id")
     if df.empty:
         return templates.TemplateResponse(request, "results.html", {"active": "results", "days": []})
 
-    df["week"] = pd.to_datetime(df["date"]).dt.to_period("W").dt.start_time.dt.strftime("%Y-%m-%d")
+    df["week"] = week_of(df["date"])
     weeks = sorted(df["week"].unique())
-    current = week if week in weeks else weeks[-1]
-    position = weeks.index(current)
+    if week is None:
+        week = weeks[-1]
+    elif week not in weeks:
+        raise HTTPException(status_code=404)
+    position = weeks.index(week)
 
-    wk = df[df["week"] == current].merge(market, on="id", how="left").sort_values(["date", "home"])
-    days = [{"label": day_label(d), "matches": [match_card(m) for m in group.itertuples()]}
-            for d, group in wk.groupby("date", sort=True)]
+    wk = df[df["week"] == week].merge(d["closing"], on="id", how="left").sort_values(["date", "home"])
+    days = [{"label": day_label(day), "matches": [match_card(m) for m in group.itertuples()]}
+            for day, group in wk.groupby("date", sort=True)]
 
     first, last = wk["date"].min(), wk["date"].max()
+    week_url = lambda w: f"{BASE}/results/{w}/"
     return templates.TemplateResponse(request, "results.html", {
         "active": "results",
         "days": days,
         "summary": forecast_summary(wk),
-        "games_in_week": len(wk),
         "week_label": day_label(first) if first == last else f"{day_label(first)} to {day_label(last)}",
-        "previous_week": weeks[position - 1] if position > 0 else None,
-        "next_week": weeks[position + 1] if position < len(weeks) - 1 else None,
+        "previous_url": week_url(weeks[position - 1]) if position > 0 else None,
+        "next_url": week_url(weeks[position + 1]) if position < len(weeks) - 1 else None,
     })
 
 
-@app.get("/table", response_class=HTMLResponse)
-def table_page(request: Request, season: int | None = None):
-    with connect() as conn:
-        finished = load_finished(conn)
+@app.get("/table/", response_class=HTMLResponse)
+def table_latest(request: Request):
+    return table_page(request, None)
+
+
+@app.get("/table/{season}/", response_class=HTMLResponse)
+def table_season(request: Request, season: int):
+    return table_page(request, season)
+
+
+def table_page(request: Request, season: int | None):
+    finished = data()["finished"]
     if finished.empty:
         return templates.TemplateResponse(request, "table.html", {"active": "table", "rows": []})
 
-    seasons = sorted(finished["season"].unique(), reverse=True)
-    season = season if season in seasons else seasons[0]
+    seasons = sorted(finished["season"].unique())
+    if season is None:
+        season = seasons[-1]
+    elif season not in seasons:
+        raise HTTPException(status_code=404)
     table = league_table(finished, season)
     relegation_from = len(table) - 2  # the bottom three go down
 
     rows = [{
         "position": r.position,
         "team": r.team,
+        # Team pages cover seasons with model predictions; older tables link to the team's main page.
+        "url": team_url(r.team, season if season >= START_SEASON else None),
         "played": r.played, "won": r.won, "drawn": r.drawn, "lost": r.lost,
         "gf": r.gf, "ga": r.ga, "gd": signed_number(r.gd), "points": r.points,
         "xgf": f"{r.xgf:.1f}" if r.xg_games else "\u2013",
@@ -334,78 +415,109 @@ def table_page(request: Request, season: int | None = None):
         "active": "table",
         "rows": rows,
         "season": season_label(season),
-        "is_current": season == seasons[0],
+        "is_current": season == seasons[-1],
         "has_xg": bool(table["xg_games"].sum()),
-        "seasons": [{"value": s, "label": season_label(s)} for s in seasons if s >= START_SEASON],
-        "selected": season,
+        "seasons": season_options(seasons, season, lambda s: f"{BASE}/table/{s}/"),
     })
 
 
-@app.get("/team/{name}", response_class=HTMLResponse)
-def team_page(request: Request, name: str, season: int | None = None):
-    today = date.today().isoformat()
-    with connect() as conn:
-        finished = load_finished(conn)
-        predictions = load_best_predictions(conn)
-        market = load_market(conn, closing=True)
-        games = load_games(conn)
+@app.get("/team/{slug}/", response_class=HTMLResponse)
+def team_latest(request: Request, slug: str):
+    return team_page(request, slug, None)
+
+
+@app.get("/team/{slug}/all/", response_class=HTMLResponse)
+def team_all(request: Request, slug: str):
+    return team_page(request, slug, "all")
+
+
+@app.get("/team/{slug}/{season}/", response_class=HTMLResponse)
+def team_season(request: Request, slug: str, season: int):
+    return team_page(request, slug, season)
+
+
+def team_page(request: Request, slug: str, season: int | str | None):
+    """One season of a team's matches, or every season (season="all")."""
+    d = data()
+    finished = d["finished"]
+    names = {slugify(n): n for n in pd.concat([finished["home"], finished["away"]]).unique()}
+    if slug not in names:
+        raise HTTPException(status_code=404)
+    name = names[slug]
 
     played = finished[(finished["home"] == name) | (finished["away"] == name)]
-    if played.empty:
-        raise HTTPException(status_code=404, detail=f"No Premier League matches found for {name}")
+    # Seasons with model predictions; teams only seen before then still get their seasons listed.
+    seasons = sorted(s for s in played["season"].unique() if s >= START_SEASON) \
+        or sorted(played["season"].unique())
+    show_all = season == "all"
+    if season is None:
+        season = seasons[-1]
+    elif not show_all and season not in seasons:
+        raise HTTPException(status_code=404)
+    latest = finished["season"].max()
+    is_current = show_all or season == latest
 
-    seasons = sorted((s for s in played["season"].unique() if s >= START_SEASON), reverse=True) \
-        or sorted(played["season"].unique(), reverse=True)
-    season = season if season in seasons else seasons[0]
-    is_current = season == finished["season"].max()
+    shown = played[played["season"].isin(seasons if show_all else [season])]
+    matches = (shown.merge(d["predictions"], on="id", how="left")
+                    .merge(d["closing"], on="id", how="left")
+                    .sort_values("date", ascending=False))
 
-    matches = (played[played["season"] == season]
-               .merge(predictions, on="id", how="left")
-               .merge(market, on="id", how="left")
-               .sort_values("date", ascending=False))
-    cards = []
-    for m in matches.itertuples():
-        card = match_card(m)
-        at_home = m.home == name
-        card["opponent"] = m.away if at_home else m.home
-        card["venue"] = "Home" if at_home else "Away"
-        card["outcome"] = "D" if m.result == "draw" else ("W" if (m.result == "home") == at_home else "L")
-        cards.append(card)
+    # Group the matches by season, newest first (a single group when showing one season).
+    groups = []
+    for group_season, group in matches.groupby("season", sort=False):
+        cards = []
+        for m in group.itertuples():
+            card = match_card(m)
+            at_home = m.home == name
+            card["venue"] = "Home" if at_home else "Away"
+            card["outcome"] = "D" if m.result == "draw" else ("W" if (m.result == "home") == at_home else "L")
+            cards.append(card)
+        groups.append({"label": season_label(group_season), "matches": cards})
 
-    table = league_table(finished, season)
-    standing = table[table["team"] == name].iloc[0]
+    if show_all:
+        outcomes = [c["outcome"] for g in groups for c in g["matches"]]
+        record = {"played": len(outcomes), "won": outcomes.count("W"),
+                  "drawn": outcomes.count("D"), "lost": outcomes.count("L")}
+        position = None
+    else:
+        standing = league_table(finished, season).set_index("team").loc[name]
+        record = {"played": int(standing["played"]), "won": int(standing["won"]),
+                  "drawn": int(standing["drawn"]), "lost": int(standing["lost"]),
+                  "points": int(standing["points"]), "gd": signed_number(standing["gd"])}
+        position = ordinal(int(standing["position"]))
 
     ratings = None
-    if is_current:
-        model = current_ratings(games, today)
+    if is_current and name in set(d["games"].loc[d["games"]["season"] == latest, ["home", "away"]].stack()):
+        model = cached_ratings()
         if name in model["ratings"].index:
             r = model["ratings"].loc[name]
             ratings = rating_text(r["attack"], r["defense"])
 
+    options = season_options(seasons, season, lambda s: team_url(name, s))
+    if len(seasons) > 1:
+        options.insert(0, {"label": "All seasons", "url": team_url(name) + "all/", "selected": show_all})
+
     return templates.TemplateResponse(request, "team.html", {
         "active": None,
         "team": name,
-        "season": season_label(season),
+        "show_all": show_all,
+        "season": None if show_all else season_label(season),
+        "first_season": season_label(seasons[0]),
+        "table_url": f"{BASE}/table/{latest if show_all else season}/",
         "is_current": is_current,
-        "position": ordinal(int(standing["position"])),
-        "record": {"played": int(standing["played"]), "won": int(standing["won"]), "drawn": int(standing["drawn"]),
-                   "lost": int(standing["lost"]), "points": int(standing["points"]), "gd": signed_number(standing["gd"])},
+        "position": position,
+        "record": record,
         "ratings": ratings,
         "summary": forecast_summary(matches),
-        "matches": cards,
-        "seasons": [{"value": s, "label": season_label(s)} for s in seasons],
-        "selected": season,
+        "groups": groups,
+        "seasons": options,
     })
 
 
-@app.get("/backtest", response_class=HTMLResponse)
+@app.get("/backtest/", response_class=HTMLResponse)
 def backtest_page(request: Request):
-    with connect() as conn:
-        finished = load_finished(conn)
-        predictions = load_predictions(conn, BACKTEST_NAME, BACKTEST_VERSION)
-        market = load_market(conn, closing=True)
-
-    df = finished.merge(predictions, on="id").merge(market, on="id")
+    d = data()
+    df = d["finished"].merge(d["backtest"], on="id").merge(d["closing"], on="id")
     if df.empty:
         return templates.TemplateResponse(request, "backtest.html", {"active": "backtest", "seasons": []})
     add_scores(df, "model")
@@ -446,17 +558,15 @@ def backtest_page(request: Request):
     })
 
 
-@app.get("/ratings", response_class=HTMLResponse)
+@app.get("/ratings/", response_class=HTMLResponse)
 def ratings(request: Request):
-    today = date.today().isoformat()
-    with connect() as conn:
-        games = load_games(conn)
-    model = current_ratings(games, today)
+    games = data()["games"]
+    model = cached_ratings()
 
     # Only show teams in the current season.
     current = games[games["season"] == games["season"].max()]
     teams = sorted(set(current["home"]) | set(current["away"]))
-    r = model["ratings"].loc[teams].copy()
+    r = model["ratings"].loc[[t for t in teams if t in model["ratings"].index]].copy()
     r["strength"] = np.log(r["attack"]) + np.log(r["defense"])
     r = r.sort_values("strength", ascending=False)
 
@@ -464,7 +574,7 @@ def ratings(request: Request):
     return templates.TemplateResponse(request, "ratings.html", {
         "active": "ratings",
         "rows": rows,
-        "as_of": day_label(today),
+        "as_of": day_label(date.today().isoformat()),
         "home_advantage": round((model["home_adv"] - 1) * 100),
         "matches_used": model["matches_used"],
     })

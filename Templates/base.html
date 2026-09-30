@@ -7,17 +7,17 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
-  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+  <link rel="stylesheet" href="{{ base }}/static/style.css">
 </head>
 <body>
   <header class="site-header">
-    <a class="site-title" href="/">Premier League probabilities</a>
+    <a class="site-title" href="{{ base }}/">Premier League probabilities</a>
     <nav aria-label="Main">
-      <a href="/" {% if active == 'upcoming' %}aria-current="page"{% endif %}>Upcoming</a>
-      <a href="/results" {% if active == 'results' %}aria-current="page"{% endif %}>Results</a>
-      <a href="/table" {% if active == 'table' %}aria-current="page"{% endif %}>Table</a>
-      <a href="/backtest" {% if active == 'backtest' %}aria-current="page"{% endif %}>Backtest</a>
-      <a href="/ratings" {% if active == 'ratings' %}aria-current="page"{% endif %}>Team ratings</a>
+      <a href="{{ base }}/" {% if active == 'upcoming' %}aria-current="page"{% endif %}>Upcoming</a>
+      <a href="{{ base }}/results/" {% if active == 'results' %}aria-current="page"{% endif %}>Results</a>
+      <a href="{{ base }}/table/" {% if active == 'table' %}aria-current="page"{% endif %}>Table</a>
+      <a href="{{ base }}/backtest/" {% if active == 'backtest' %}aria-current="page"{% endif %}>Backtest</a>
+      <a href="{{ base }}/ratings/" {% if active == 'ratings' %}aria-current="page"{% endif %}>Team ratings</a>
     </nav>
   </header>
 

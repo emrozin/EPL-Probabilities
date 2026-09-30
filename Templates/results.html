@@ -10,9 +10,9 @@
 
 {% if days %}
   <nav class="week-nav" aria-label="Weeks">
-    {% if previous_week %}<a href="/results?week={{ previous_week }}">&larr; Previous week</a>{% else %}<span></span>{% endif %}
+    {% if previous_url %}<a href="{{ previous_url }}">&larr; Previous week</a>{% else %}<span></span>{% endif %}
     <p class="week-label">{{ week_label }}</p>
-    {% if next_week %}<a href="/results?week={{ next_week }}">Next week &rarr;</a>{% else %}<span></span>{% endif %}
+    {% if next_url %}<a href="{{ next_url }}">Next week &rarr;</a>{% else %}<span></span>{% endif %}
   </nav>
 
   {% if summary %}
