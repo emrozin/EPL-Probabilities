@@ -333,3 +333,85 @@ code {
   .week-nav { grid-template-columns: 1fr 1fr; }
   .week-label { grid-column: 1 / -1; grid-row: 1; }
 }
+
+/* ---------- Team links ---------- */
+.team-link { color: inherit; text-decoration: none; }
+.team-link:hover { text-decoration: underline; text-underline-offset: 0.15em; }
+
+/* ---------- W / D / L badges ---------- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  vertical-align: 0.2em;
+  border-radius: 2px;
+}
+.badge-W { background: var(--good); color: #fff; }
+.badge-D { background: var(--draw); color: var(--ink); }
+.badge-L { background: var(--bad); color: #fff; }
+.form { display: inline-flex; gap: 0.2rem; }
+
+/* ---------- Team page ---------- */
+.eyebrow { margin: 0 0 0.4rem; font-size: 0.95rem; }
+.eyebrow a { text-decoration: none; }
+.eyebrow a:hover { text-decoration: underline; }
+.intro .good { color: var(--good); font-weight: 600; }
+.intro .bad { color: var(--bad); font-weight: 600; }
+.match-date {
+  display: block;
+  margin-bottom: 0.2rem;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.season-picker { display: flex; align-items: center; gap: 0.6rem; margin-top: 1rem; }
+.season-picker label { font-weight: 500; color: var(--ink); }
+.season-picker select {
+  font: inherit;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+}
+.season-picker select:focus-visible { outline: 3px solid var(--away); outline-offset: 1px; }
+
+/* ---------- League table ---------- */
+.league {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.league th, .league td {
+  padding: 0.5rem 0.55rem;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  white-space: nowrap;
+}
+.league thead th { font-size: 0.85rem; font-weight: 600; color: var(--muted); }
+.league abbr { text-decoration: none; }
+.league tbody th { font-family: var(--font-display); font-size: 1.15rem; font-weight: 600; }
+.league .num { text-align: right; }
+.league .pos { color: var(--muted); }
+.league .pts { font-weight: 700; }
+.league .xg { color: var(--muted); }
+.league .form-col { padding-left: 1rem; }
+.league tr.relegation { background: #ebeeeb; }
+.league tr.relegation-line td, .league tr.relegation-line th { border-top: 2px solid var(--bad); }
+
+@media (max-width: 40rem) {
+  .match-date { flex-basis: 100%; }
+}
+
+@media (max-width: 40rem) {
+  .league .wide-only { display: none; }
+  .league th, .league td { padding: 0.5rem 0.4rem; }
+  .league tbody th { font-size: 1.05rem; }
+}

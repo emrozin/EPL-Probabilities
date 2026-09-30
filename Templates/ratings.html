@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros.html" import team_link %}
 {% block title %}Team ratings | Premier League probabilities{% endblock %}
 
 {% block content %}
@@ -21,7 +22,7 @@
       {% for row in rows %}
       <tr>
         <td class="num rank">{{ loop.index }}</td>
-        <th scope="row">{{ row.team }}</th>
+        <th scope="row">{{ team_link(row.team) }}</th>
         <td class="num {{ row.scores_class }}">{{ row.scores }}</td>
         <td class="num {{ row.concedes_class }}">{{ row.concedes }}</td>
       </tr>

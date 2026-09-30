@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% from "macros.html" import finished_match %}
+{% block title %}{{ team }} | Premier League probabilities{% endblock %}
+
+{% block content %}
+<div class="intro">
+  <p class="eyebrow"><a href="/table">Premier League table</a></p>
+  <h1>{{ team }}</h1>
+  <p>{{ position }} in {{ season }}{% if is_current %} so far{% endif %}: {{ record.played }} played, {{ record.won }} won, {{ record.drawn }} drawn, {{ record.lost }} lost, {{ record.points }} points, goal difference {{ record.gd }}.</p>
+  {% if ratings %}
+  <p>Current model rating: scores <span class="{{ ratings.scores_class }}">{{ ratings.scores }}</span> and concedes <span class="{{ ratings.concedes_class }}">{{ ratings.concedes }}</span> compared with an average Premier League team.</p>
+  {% endif %}
+  {% if seasons|length > 1 %}
+  <form class="season-picker" method="get" action="{{ team_url(team) }}">
+    <label for="season">Season</label>
+    <select id="season" name="season" onchange="this.form.submit()">
+      {% for s in seasons %}<option value="{{ s.value }}" {% if s.value == selected %}selected{% endif %}>{{ s.label }}</option>{% endfor %}
+    </select>
+    <noscript><button type="submit">Show</button></noscript>
+  </form>
+  {% endif %}
+</div>
+
+{% if summary %}
+<div class="scorecard">
+  <div class="stat">
+    <p class="stat-value">{{ summary.model_typical }}%</p>
+    <p class="stat-label">Model's typical probability for the actual result in {{ team }}'s matches</p>
+  </div>
+  <div class="stat">
+    <p class="stat-value stat-muted">{{ summary.market_typical }}%</p>
+    <p class="stat-label">Betting market's</p>
+  </div>
+  <div class="stat">
+    <p class="stat-value stat-muted">{{ summary.model_closer }} of {{ summary.games }}</p>
+    <p class="stat-label">Matches where the model gave the result a higher chance</p>
+  </div>
+</div>
+{% endif %}
+
+<section class="day">
+  <h2>Matches, most recent first</h2>
+  <ul class="matches">
+    {% for m in matches %}{{ finished_match(m, current_team=team) }}{% endfor %}
+  </ul>
+</section>
+{% endblock %}

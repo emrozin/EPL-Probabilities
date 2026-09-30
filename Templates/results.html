@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% from "macros.html" import split_bar %}
+{% from "macros.html" import finished_match %}
 {% block title %}Recent results | Premier League probabilities{% endblock %}
 
 {% block content %}
 <div class="intro">
   <h1>Results vs predictions</h1>
-  <p>How the model's forecasts compared with what happened. The outcome that occurred is shown in full colour; the thin bar is the betting market's closing view.</p>
+  <p>How the model's forecasts compared with what happened. The outcome that occurred is shown in full colour; the thin bar is the betting market's closing view. Click a team to see all its matches.</p>
 </div>
 
 {% if days %}
@@ -15,46 +15,28 @@
     {% if next_week %}<a href="/results?week={{ next_week }}">Next week &rarr;</a>{% else %}<span></span>{% endif %}
   </nav>
 
+  {% if summary %}
   <div class="scorecard">
     <div class="stat">
       <p class="stat-value">{{ summary.model_typical }}%</p>
       <p class="stat-label">Model's typical probability for the actual result</p>
     </div>
-    {% if summary.market_typical is not none %}
     <div class="stat">
       <p class="stat-value stat-muted">{{ summary.market_typical }}%</p>
       <p class="stat-label">Betting market's</p>
     </div>
     <div class="stat">
-      <p class="stat-value stat-muted">{{ summary.model_closer }} of {{ summary.compared }}</p>
+      <p class="stat-value stat-muted">{{ summary.model_closer }} of {{ summary.games }}</p>
       <p class="stat-label">Matches where the model gave the result a higher chance</p>
     </div>
-    {% endif %}
   </div>
+  {% endif %}
 
   {% for day in days %}
   <section class="day">
     <h2>{{ day.label }}</h2>
     <ul class="matches">
-      {% for m in day.matches %}
-      <li class="match">
-        <div class="teams-result">
-          <p class="teams">
-            <span class="team-home">{{ m.home }}</span>
-            <span class="team-away">{{ m.away }}</span>
-          </p>
-          <p class="score">{{ m.score }}</p>
-        </div>
-        <div class="bars">
-          {{ split_bar(m.model, 'model', m.result) }}
-          {% if m.market %}{{ split_bar(m.market, 'market', m.result) }}{% endif %}
-          <p class="market-numbers">
-            Model gave this result <strong>{{ m.model_actual }}%</strong>{% if m.market_actual is not none %}, market {{ m.market_actual }}%{% endif %}
-            <span class="source">{{ m.source }}</span>
-          </p>
-        </div>
-      </li>
-      {% endfor %}
+      {% for m in day.matches %}{{ finished_match(m) }}{% endfor %}
     </ul>
   </section>
   {% endfor %}

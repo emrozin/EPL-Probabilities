@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import split_bar %}
+{% from "macros.html" import split_bar, team_link %}
 
 {% block content %}
 <div class="intro">
@@ -20,8 +20,8 @@
       {% for m in day.matches %}
       <li class="match">
         <p class="teams">
-          <span class="team-home">{{ m.home }}</span>
-          <span class="team-away">{{ m.away }}</span>
+          <span class="team-home">{{ team_link(m.home) }}</span>
+          <span class="team-away">{{ team_link(m.away) }}</span>
         </p>
         <div class="bars">
           {{ split_bar(m.model, 'model') }}

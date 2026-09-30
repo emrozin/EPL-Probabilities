@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% from "macros.html" import team_link, outcome_badge %}
+{% block title %}Table | Premier League probabilities{% endblock %}
+
+{% block content %}
+<div class="intro">
+  <h1>{% if is_current %}Premier League table{% else %}{{ season }} final table{% endif %}</h1>
+  <p>{% if has_xg %}Alongside the usual columns, expected goals (xG) show the quality of chances each team created and allowed. A team whose goals run well ahead of its xG may be riding luck that won't last.{% else %}Standings for {{ season }}.{% endif %}</p>
+  {% if seasons|length > 1 %}
+  <form class="season-picker" method="get" action="/table">
+    <label for="season">Season</label>
+    <select id="season" name="season" onchange="this.form.submit()">
+      {% for s in seasons %}<option value="{{ s.value }}" {% if s.value == selected %}selected{% endif %}>{{ s.label }}</option>{% endfor %}
+    </select>
+    <noscript><button type="submit">Show</button></noscript>
+  </form>
+  {% endif %}
+</div>
+
+{% if rows %}
+<div class="table-wrap">
+  <table class="league">
+    <thead>
+      <tr>
+        <th scope="col" class="num"><abbr title="Position">Pos</abbr></th>
+        <th scope="col">Team</th>
+        <th scope="col" class="num"><abbr title="Played">P</abbr></th>
+        <th scope="col" class="num"><abbr title="Won">W</abbr></th>
+        <th scope="col" class="num"><abbr title="Drawn">D</abbr></th>
+        <th scope="col" class="num"><abbr title="Lost">L</abbr></th>
+        <th scope="col" class="num wide-only"><abbr title="Goals for">GF</abbr></th>
+        <th scope="col" class="num wide-only"><abbr title="Goals against">GA</abbr></th>
+        <th scope="col" class="num"><abbr title="Goal difference">GD</abbr></th>
+        {% if has_xg %}
+        <th scope="col" class="num xg wide-only"><abbr title="Expected goals for">xGF</abbr></th>
+        <th scope="col" class="num xg wide-only"><abbr title="Expected goals against">xGA</abbr></th>
+        {% endif %}
+        <th scope="col" class="num"><abbr title="Points">Pts</abbr></th>
+        <th scope="col" class="form-col wide-only">Last 5</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr class="{% if r.first_relegation %}relegation-line{% endif %}{% if r.relegation %} relegation{% endif %}">
+        <td class="num pos">{{ r.position }}</td>
+        <th scope="row">{{ team_link(r.team) }}</th>
+        <td class="num">{{ r.played }}</td>
+        <td class="num">{{ r.won }}</td>
+        <td class="num">{{ r.drawn }}</td>
+        <td class="num">{{ r.lost }}</td>
+        <td class="num wide-only">{{ r.gf }}</td>
+        <td class="num wide-only">{{ r.ga }}</td>
+        <td class="num">{{ r.gd }}</td>
+        {% if has_xg %}
+        <td class="num xg wide-only">{{ r.xgf }}</td>
+        <td class="num xg wide-only">{{ r.xga }}</td>
+        {% endif %}
+        <td class="num pts">{{ r.points }}</td>
+        <td class="form-col wide-only"><span class="form">{% for f in r.form %}{{ outcome_badge(f) }}{% endfor %}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="note">Ranked by points, then goal difference, then goals scored. The shaded rows below the line are the relegation places. Last 5 reads oldest to most recent. On small screens, goals, xG and form are hidden; open a team to see its matches.</p>
+{% else %}
+  <section class="empty"><h2>No matches played yet</h2></section>
+{% endif %}
+{% endblock %}

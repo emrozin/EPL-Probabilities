@@ -10,3 +10,39 @@
     {% endfor %}
   </div>
 {% endmacro %}
+
+{# A team name that links to the team's page, unless it's the page we're already on. #}
+{% macro team_link(name, current=None) -%}
+  {% if name == current %}{{ name }}{% else %}<a class="team-link" href="{{ team_url(name) }}">{{ name }}</a>{% endif %}
+{%- endmacro %}
+
+{# W / D / L badge #}
+{% macro outcome_badge(letter) -%}
+  <span class="badge badge-{{ letter }}" title="{{ {'W': 'Win', 'D': 'Draw', 'L': 'Loss'}[letter] }}">{{ letter }}</span>
+{%- endmacro %}
+
+{# One finished match: teams, score, model and market bars with the actual result highlighted. #}
+{% macro finished_match(m, current_team=None) %}
+  <li class="match">
+    <div class="teams-result">
+      <p class="teams">
+        {% if m.venue %}<span class="match-date">{{ m.date }} &middot; {{ m.venue }}</span>{% endif %}
+        <span class="team-home">{{ team_link(m.home, current_team) }}</span>
+        <span class="team-away">{{ team_link(m.away, current_team) }}</span>
+      </p>
+      <p class="score">{% if m.outcome %}{{ outcome_badge(m.outcome) }} {% endif %}{{ m.score }}</p>
+    </div>
+    <div class="bars">
+      {% if m.model %}
+        {{ split_bar(m.model, 'model', m.result) }}
+        {% if m.market %}{{ split_bar(m.market, 'market', m.result) }}{% endif %}
+        <p class="market-numbers">
+          Model gave this result <strong>{{ m.model_actual }}%</strong>{% if m.market_actual is not none %}, market {{ m.market_actual }}%{% endif %}
+          <span class="source">{{ m.source }}</span>
+        </p>
+      {% else %}
+        <p class="market-numbers">No model prediction for this match (a team had no recent Premier League matches to rate it on).</p>
+      {% endif %}
+    </div>
+  </li>
+{% endmacro %}
