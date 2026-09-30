@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Premier League match probabilities{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="/">Premier League probabilities</a>
+    <nav aria-label="Main">
+      <a href="/" {% if active == 'upcoming' %}aria-current="page"{% endif %}>Upcoming matches</a>
+      <a href="/ratings" {% if active == 'ratings' %}aria-current="page"{% endif %}>Team ratings</a>
+    </nav>
+  </header>
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site-footer">
+    <p>Probabilities come from a Poisson model fitted to three years of results and expected goals, with recent matches weighted more heavily. Data from football-data.co.uk and Understat. This is a statistics project, not betting advice.</p>
+    <p><a href="https://github.com/emrozin/epl-probabilities">Code and methodology on GitHub</a></p>
+  </footer>
+</body>
+</html>

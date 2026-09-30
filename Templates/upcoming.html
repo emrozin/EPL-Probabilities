@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% macro split_bar(p, kind) %}
+  <div class="bar bar-{{ kind }}" role="img"
+       aria-label="Home win {{ p.home }}%, draw {{ p.draw }}%, away win {{ p.away }}%">
+    <span class="seg seg-home" style="flex-basis: {{ p.home }}%">{% if kind == 'model' and p.home >= 12 %}{{ p.home }}%{% endif %}</span>
+    <span class="seg seg-draw" style="flex-basis: {{ p.draw }}%">{% if kind == 'model' and p.draw >= 12 %}{{ p.draw }}%{% endif %}</span>
+    <span class="seg seg-away" style="flex-basis: {{ p.away }}%">{% if kind == 'model' and p.away >= 12 %}{{ p.away }}%{% endif %}</span>
+  </div>
+{% endmacro %}
+
+{% block content %}
+<div class="intro">
+  <h1>Upcoming matches</h1>
+  <p>For each match, the thick bar is the model's chance of a home win, draw or away win. The thin bar underneath is the betting market's view, with the bookmaker's margin removed.</p>
+  <p class="key">
+    <span class="key-item"><span class="swatch seg-home"></span>Home win</span>
+    <span class="key-item"><span class="swatch seg-draw"></span>Draw</span>
+    <span class="key-item"><span class="swatch seg-away"></span>Away win</span>
+  </p>
+</div>
+
+{% if days %}
+  {% for day in days %}
+  <section class="day">
+    <h2>{{ day.label }}</h2>
+    <ul class="matches">
+      {% for m in day.matches %}
+      <li class="match">
+        <p class="teams">
+          <span class="team-home">{{ m.home }}</span>
+          <span class="team-away">{{ m.away }}</span>
+        </p>
+        <div class="bars">
+          {{ split_bar(m.model, 'model') }}
+          {% if m.market %}
+            {{ split_bar(m.market, 'market') }}
+            <p class="market-numbers">Market {{ m.market.home }}% / {{ m.market.draw }}% / {{ m.market.away }}%</p>
+          {% else %}
+            <p class="market-numbers">No market odds collected yet</p>
+          {% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endfor %}
+{% else %}
+  <section class="empty">
+    <h2>No upcoming matches yet</h2>
+    <p>The next round appears here once bookmakers' odds are collected: Friday afternoon for weekend matches, Tuesday afternoon for midweek ones. In the meantime, see how every team rates right now.</p>
+    <p><a class="button" href="/ratings">See team ratings</a></p>
+  </section>
+{% endif %}
+{% endblock %}
