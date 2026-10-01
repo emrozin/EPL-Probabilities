@@ -96,9 +96,36 @@ def test_full_import_from_cached_files_is_safe_to_rerun(project, monkeypatch):
     monkeypatch.setattr(import_epl, "LAST_SEASON", 2024)   # 2024 isn't cached and "downloads" fail
     monkeypatch.setattr(import_epl.requests, "get",
                         lambda *a, **k: (_ for _ in ()).throw(requests.ConnectionError("offline")))
-    import_epl.main()
-    import_epl.main()
+    import_epl.main([])
+    import_epl.main([])
     conn = sqlite3.connect(project / "data" / "sports.db")
     assert conn.execute("SELECT COUNT(*) FROM games").fetchone()[0] == 2
     assert conn.execute("SELECT home_shots FROM soccer_match_stats ORDER BY game_id").fetchall() == [(12,), (7,)]
     assert conn.execute("SELECT COUNT(*) FROM raw_source_rows").fetchone()[0] == 2
+
+
+def test_championship_imports_into_its_own_league(project, monkeypatch):
+    raw = project / "data" / "raw"
+    raw.mkdir()
+    (raw / "E1_2324.csv").write_text(HEADER + "\n"
+        "E1,05/08/2023,Leeds,Cardiff,2,2,D,15,8,1.6,4.0,5.5,1.62,4.1,5.6,1.7,2.1,-1,1.9,2.0\n")
+    (raw / "E0_2324.csv").write_text(HEADER + "\n"
+        "E0,12/08/2023,Arsenal,Leeds,2,1,H,12,9,1.9,3.6,4.2,1.95,3.7,4.3,1.8,2.0,-0.5,1.93,1.97\n")
+    monkeypatch.setattr(import_epl, "RAW_DIR", raw)
+    monkeypatch.setattr(import_epl, "FIRST_SEASON", 2023)
+    monkeypatch.setattr(import_epl, "LAST_SEASON", 2024)
+    monkeypatch.setattr(import_epl.requests, "get",
+                        lambda *a, **k: (_ for _ in ()).throw(requests.ConnectionError("offline")))
+    import_epl.main(["--league", "CHAMP"])
+    import_epl.main([])
+    conn = sqlite3.connect(project / "data" / "sports.db")
+    leagues = dict(conn.execute("""SELECT l.code, COUNT(*) FROM games g JOIN leagues l ON l.id = g.league_id
+                                   GROUP BY l.code""").fetchall())
+    assert leagues == {"CHAMP": 1, "EPL": 1}
+    # Leeds appears in both leagues, as a separate team row in each.
+    assert conn.execute("SELECT COUNT(*) FROM teams WHERE name = 'Leeds'").fetchone()[0] == 2
+
+
+def test_unknown_league_is_rejected():
+    with pytest.raises(SystemExit, match="Unknown league"):
+        import_epl.league_from_args(["--league", "SERIEA"])

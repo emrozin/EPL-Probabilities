@@ -1,7 +1,8 @@
-"""Import every EPL season from football-data.co.uk into SQLite.
+"""Import every season of an English league from football-data.co.uk into SQLite.
 
 Usage:
-    python import_epl.py
+    python import_epl.py                  # the Premier League
+    python import_epl.py --league CHAMP   # the Championship (used to rate newly promoted teams)
 
 Imports results, match stats, and all odds the files contain (1X2, over/under 2.5,
 Asian handicap), and keeps every original row as JSON so nothing is lost.
@@ -13,6 +14,7 @@ Safe to re-run: games are upserted and existing odds rows are skipped.
 
 import io
 import sqlite3
+import sys
 from pathlib import Path
 
 import pandas as pd
@@ -21,6 +23,12 @@ import requests
 DB_PATH = Path("data/sports.db")
 RAW_DIR = Path("data/raw")
 SCHEMA_PATH = Path("schema.sql")
+
+# League code -> its file code on football-data.co.uk and its name.
+LEAGUES = {
+    "EPL": {"division": "E0", "name": "Premier League"},
+    "CHAMP": {"division": "E1", "name": "Championship"},
+}
 
 # Seasons are stored by start year: 2024 means 2024/25.
 FIRST_SEASON = 1993   # the first season football-data.co.uk has for the EPL
@@ -87,13 +95,13 @@ def season_code(season: int) -> str:
     return f"{season % 100:02d}{(season + 1) % 100:02d}"
 
 
-def load_season(season: int) -> pd.DataFrame:
+def load_season(season: int, division: str = "E0") -> pd.DataFrame:
     """Return one season's CSV as a DataFrame (think: in-memory table), using the cache if possible."""
     RAW_DIR.mkdir(parents=True, exist_ok=True)
-    cache_file = RAW_DIR / f"E0_{season_code(season)}.csv"
+    cache_file = RAW_DIR / f"{division}_{season_code(season)}.csv"
 
     if not cache_file.exists() or season == LAST_SEASON:
-        url = f"https://www.football-data.co.uk/mmz4281/{season_code(season)}/E0.csv"
+        url = f"https://www.football-data.co.uk/mmz4281/{season_code(season)}/{division}.csv"
         try:
             response = requests.get(url, timeout=30)
             response.raise_for_status()  # throws an exception on a 404 etc.
@@ -151,12 +159,12 @@ def as_int(value):
     return None if value is None or pd.isna(value) else int(value)
 
 
-def get_league_id(conn: sqlite3.Connection) -> int:
+def get_league_id(conn: sqlite3.Connection, code: str = "EPL") -> int:
     conn.execute(
         "INSERT OR IGNORE INTO leagues (code, name, sport) VALUES (?, ?, ?)",
-        ("EPL", "Premier League", "soccer"),
+        (code, LEAGUES[code]["name"], "soccer"),
     )
-    return conn.execute("SELECT id FROM leagues WHERE code = ?", ("EPL",)).fetchone()[0]
+    return conn.execute("SELECT id FROM leagues WHERE code = ?", (code,)).fetchone()[0]
 
 
 def get_team_id(conn: sqlite3.Connection, league_id: int, name: str, cache: dict) -> int:
@@ -216,10 +224,10 @@ def upsert_stats(conn: sqlite3.Connection, game_id: int, row: pd.Series) -> None
     )
 
 
-def save_raw_row(conn: sqlite3.Connection, game_id: int, season: int, row: pd.Series) -> None:
+def save_raw_row(conn: sqlite3.Connection, game_id: int, season: int, row: pd.Series, division: str = "E0") -> None:
     conn.execute(
         "INSERT OR REPLACE INTO raw_source_rows (game_id, source, data) VALUES (?, ?, ?)",
-        (game_id, f"football-data.co.uk E0 {season}", row.dropna().to_json()),
+        (game_id, f"football-data.co.uk {division} {season}", row.dropna().to_json()),
     )
 
 
@@ -266,13 +274,27 @@ def insert_odds(conn: sqlite3.Connection, game_id: int, row: pd.Series) -> int:
     return added
 
 
-def main() -> None:
+def league_from_args(argv: list[str]) -> str:
+    """'--league CHAMP' -> 'CHAMP'; no option -> 'EPL'."""
+    if "--league" not in argv:
+        return "EPL"
+    code = argv[argv.index("--league") + 1].upper() if argv.index("--league") + 1 < len(argv) else ""
+    if code not in LEAGUES:
+        raise SystemExit(f"Unknown league {code!r}. Choose one of: {', '.join(LEAGUES)}")
+    return code
+
+
+def main(argv: list[str] | None = None) -> None:
+    code = league_from_args(sys.argv[1:] if argv is None else argv)
+    division = LEAGUES[code]["division"]
+    print(f"Importing the {LEAGUES[code]['name']}")
+
     DB_PATH.parent.mkdir(exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(SCHEMA_PATH.read_text())
 
-    league_id = get_league_id(conn)
+    league_id = get_league_id(conn, code)
     team_ids: dict[str, int] = {}
     known = known_columns()
     unmapped: dict[str, list[int]] = {}  # column -> seasons it appears in
@@ -280,7 +302,7 @@ def main() -> None:
     for season in range(FIRST_SEASON, LAST_SEASON + 1):
         label = f"{season}/{(season + 1) % 100:02d}"
         try:
-            df = load_season(season)
+            df = load_season(season, division)
         except requests.RequestException as err:
             print(f"{label}: skipped ({err})")
             continue
@@ -298,7 +320,7 @@ def main() -> None:
                 home_id, away_id, int(row["FTHG"]), int(row["FTAG"]),
             )
             upsert_stats(conn, game_id, row)
-            save_raw_row(conn, game_id, season, row)
+            save_raw_row(conn, game_id, season, row, division)
             new_odds += insert_odds(conn, game_id, row)
 
         conn.commit()  # one transaction per season
