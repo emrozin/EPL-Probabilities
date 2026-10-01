@@ -11,6 +11,7 @@ Steps:
     3. run_backtest.py      backtest predictions, now including the latest matches
     4. import_fixtures.py   the next round's fixtures and pre-match odds
     5. predict_upcoming.py  predictions for those fixtures, saved before kickoff
+    6. fetch_availability.py  a snapshot of player injuries and availability (collected for later use)
 
 Run it before the first kickoff of each round (for weekend matches, Friday evening,
 after football-data.co.uk posts the fixtures).
@@ -28,6 +29,7 @@ STEPS = [
     ("run_backtest.py", "Backtest predictions"),
     ("import_fixtures.py", "Upcoming fixtures and odds"),
     ("predict_upcoming.py", "Predictions for upcoming matches"),
+    ("fetch_availability.py", "Player availability snapshot"),
 ]
 BUILD_STEP = ("build_site.py", "Static website (docs/)")
 
