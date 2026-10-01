@@ -102,11 +102,33 @@ def load_totals(conn, closing=True, line=2.5):
     """, conn, params=(line, 1 if closing else 0))
 
 
-def fit_poisson(train, as_of, half_life_days=HALF_LIFE_DAYS, shrinkage=SHRINKAGE, xg_weight=XG_WEIGHT):
-    """Fit attack/defense ratings, base rate and home advantage by weighted maximum likelihood."""
+def squad_value_prior(teams, squad_values, value_weight):
+    """Where shrinkage should pull each team's ratings: toward what its squad value suggests.
+
+    squad_values: {team: value} for this week. Each team's log value is compared with the average
+    of the teams being rated, so doubling a squad's value counts the same at any level. A team
+    with no value gets 0 (average), as does every team when value_weight is 0.
+    """
+    if not squad_values or not value_weight:
+        return np.zeros(len(teams))
+    logs = np.array([np.log(squad_values[t]) if squad_values.get(t, 0) > 0 else np.nan for t in teams])
+    if np.isnan(logs).all():
+        return np.zeros(len(teams))
+    return np.nan_to_num(value_weight * (logs - np.nanmean(logs)), nan=0.0)
+
+
+def fit_poisson(train, as_of, half_life_days=HALF_LIFE_DAYS, shrinkage=SHRINKAGE, xg_weight=XG_WEIGHT,
+                squad_values=None, value_weight=0.0):
+    """Fit attack/defense ratings, base rate and home advantage by weighted maximum likelihood.
+
+    Shrinkage pulls ratings toward average or, with squad_values and a value_weight above 0,
+    toward what each team's squad value suggests (see squad_value_prior).
+    """
     teams = sorted(set(train["home"]) | set(train["away"]))
     index = {team: i for i, team in enumerate(teams)}
     n = len(teams)
+    prior = squad_value_prior(teams, squad_values, value_weight)
+    prior = prior - prior.mean()   # centred, like the ratings themselves
 
     home_idx = train["home"].map(index).to_numpy()
     away_idx = train["away"].map(index).to_numpy()
@@ -134,15 +156,15 @@ def fit_poisson(train, as_of, half_life_days=HALF_LIFE_DAYS, shrinkage=SHRINKAGE
 
         # Poisson log-likelihood, minus a constant that doesn't depend on the ratings
         log_lik = home_goals * log_home - exp_home + away_goals * log_away - exp_away
-        value = -np.sum(weights * log_lik) + shrinkage * np.sum(attack**2 + defense**2)
+        value = -np.sum(weights * log_lik) + shrinkage * np.sum((attack - prior)**2 + (defense - prior)**2)
 
         # Gradient: how the value changes as each rating changes
         res_home = weights * (exp_home - home_goals)
         res_away = weights * (exp_away - away_goals)
         grad_attack = (np.bincount(home_idx, res_home, n) + np.bincount(away_idx, res_away, n)
-                       + 2 * shrinkage * attack)
+                       + 2 * shrinkage * (attack - prior))
         grad_defense = (-np.bincount(away_idx, res_home, n) - np.bincount(home_idx, res_away, n)
-                        + 2 * shrinkage * defense)
+                        + 2 * shrinkage * (defense - prior))
         grad = np.concatenate([
             grad_attack - grad_attack.mean(),    # account for the centering in unpack()
             grad_defense - grad_defense.mean(),
@@ -208,8 +230,24 @@ def predict(model, home, away, max_goals=15, rho=RHO):
     return {"exp_home": exp_home, "exp_away": exp_away, "grid": grid, **goal_markets(grid)}
 
 
-def backtest(games, start_season, rho=RHO, **model_settings):
-    """Walk-forward: each week, train only on earlier matches, then predict that week's games."""
+def load_squad_values(conn, league="EPL") -> dict:
+    """{'YYYY-MM-DD' Monday: {team: squad value in euros}}; empty if squad values haven't been built."""
+    try:
+        rows = conn.execute("SELECT week, team, value_eur FROM squad_values WHERE league_code = ?", (league,)).fetchall()
+    except Exception:  # no squad_values table yet
+        return {}
+    weeks: dict = {}
+    for week, team, value in rows:
+        weeks.setdefault(week, {})[team] = value
+    return weeks
+
+
+def backtest(games, start_season, rho=RHO, squad_values_by_week=None, **model_settings):
+    """Walk-forward: each week, train only on earlier matches, then predict that week's games.
+
+    squad_values_by_week: optional {Monday: {team: value}}; each week uses that Monday's values,
+    which are built only from information available by then.
+    """
     test = games[games["season"] >= start_season].copy()
     test["week"] = pd.to_datetime(test["date"]).dt.to_period("W").dt.start_time
 
@@ -220,6 +258,8 @@ def backtest(games, start_season, rho=RHO, **model_settings):
         train = games[(games["date"] >= window_start) & (games["date"] < cutoff)]
         if train.empty:
             continue  # no earlier matches to learn from (e.g. the first weeks of a league's data)
+        if squad_values_by_week is not None:
+            model_settings["squad_values"] = squad_values_by_week.get(cutoff, {})
         model = fit_poisson(train, cutoff, **model_settings)
         known = set(model["ratings"].index)
 

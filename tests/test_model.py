@@ -124,3 +124,42 @@ def test_backtest_skips_weeks_with_no_earlier_matches():
     results = backtest(games, start_season=2016)
     assert len(results) > 0
     assert results["id"].isin(games.loc[games["season"] == 2022, "id"]).any()  # 2022 predicted once data exists
+
+
+def test_value_weight_zero_is_todays_model():
+    games, _ = simulate_league(seed=7, seasons=range(2020, 2022))
+    values = {t: 100e6 * (i + 1) for i, t in enumerate(sorted(set(games["home"])))}
+    as_of = games["date"].max()
+    plain = fit_poisson(games, as_of)
+    zero = fit_poisson(games, as_of, squad_values=values, value_weight=0)
+    pd.testing.assert_frame_equal(plain["ratings"], zero["ratings"])
+
+
+def test_squad_value_pulls_teams_with_little_data_toward_it():
+    games, _ = simulate_league(seed=8, seasons=range(2020, 2022))
+    as_of = games["date"].max()
+    newcomer = pd.DataFrame([{"id": 99_999, "season": 2021, "date": as_of, "home": "Newcomer", "away": "Team A",
+                              "home_score": 1, "away_score": 1, "home_xg": 1.0, "away_xg": 1.0,
+                              "lam_h": 1.0, "lam_a": 1.0}])
+    train = pd.concat([games, newcomer], ignore_index=True)
+    others = {t: 100e6 for t in set(games["home"])}
+
+    def strength(newcomer_value):
+        fit = fit_poisson(train, as_of, shrinkage=4, value_weight=0.5,
+                          squad_values={**others, "Newcomer": newcomer_value})
+        r = fit["ratings"].loc["Newcomer"]
+        return np.log(r["attack"]) + np.log(r["defense"])
+
+    # One draw tells the model almost nothing; the squad value decides where it starts.
+    assert strength(800e6) > 0.3 > -0.3 > strength(12e6)
+
+
+def test_backtest_uses_each_weeks_squad_values():
+    games, _ = simulate_league(seed=9, seasons=range(2014, 2017))
+    teams = sorted(set(games["home"]))
+    weeks = pd.to_datetime(games["date"]).dt.to_period("W").dt.start_time.dt.strftime("%Y-%m-%d").unique()
+    values = {w: {t: 50e6 * (i + 1) for i, t in enumerate(teams)} for w in weeks}
+    plain = backtest(games, start_season=2016)
+    with_values = backtest(games, start_season=2016, squad_values_by_week=values, value_weight=0.3, shrinkage=2)
+    assert len(plain) == len(with_values)
+    assert not np.allclose(plain["model_home"], with_values["model_home"])
