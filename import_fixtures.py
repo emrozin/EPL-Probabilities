@@ -15,7 +15,7 @@ import sqlite3
 import pandas as pd
 import requests
 
-from import_epl import DB_PATH, SCHEMA_PATH, get_league_id, insert_odds
+from import_epl import DB_PATH, SCHEMA_PATH, find_game, get_league_id, insert_odds
 
 FIXTURES_URL = "https://www.football-data.co.uk/fixtures.csv"
 DIVISION = "E0"  # Premier League's code in football-data.co.uk files
@@ -71,11 +71,8 @@ def main() -> None:
 
         match_date = row["Date"].strftime("%Y-%m-%d")
         kickoff = kickoff_time(row.get("Time"))
-        key = (league_id, match_date, team_ids[home], team_ids[away])
-        existing = conn.execute(
-            "SELECT id FROM games WHERE league_id = ? AND date = ? AND home_team_id = ? AND away_team_id = ?", key,
-        ).fetchone()
-        if existing is None:
+        game_id = find_game(conn, league_id, season_for(row["Date"]), team_ids[home], team_ids[away])
+        if game_id is None:
             game_id = conn.execute(
                 """
                 INSERT INTO games (league_id, season, date, home_team_id, away_team_id, status, kickoff)
@@ -85,10 +82,10 @@ def main() -> None:
             ).lastrowid
             new_games += 1
         else:
-            game_id = existing[0]
-            # Kickoff times sometimes move (TV scheduling); keep the latest for games not yet played.
-            if kickoff:
-                conn.execute("UPDATE games SET kickoff = ? WHERE id = ? AND status = 'scheduled'", (kickoff, game_id))
+            # Dates and kickoff times sometimes move (TV scheduling, postponements);
+            # keep the latest for games not yet played.
+            conn.execute("UPDATE games SET date = ?, kickoff = COALESCE(?, kickoff) WHERE id = ? AND status = 'scheduled'",
+                         (match_date, kickoff, game_id))
         added = insert_odds(conn, game_id, row)
         new_odds += added
         print(f"  {match_date} {kickoff or '--:--'}  {home} v {away}  ({added} new odds rows)")

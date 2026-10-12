@@ -7,6 +7,11 @@ Understat has no official API. Its league pages load their data from an internal
 JSON endpoint, getLeagueData/<league>/<season>, whose `dates` list holds every
 fixture with each team's xG. This script requests that endpoint directly.
 
+Understat usually posts results within hours, while football-data.co.uk can take a few
+days. So when a match has finished on Understat but has no result in our database yet,
+its score is filled in from Understat (marking the game final). When football-data.co.uk's
+file arrives, its score replaces it, and any disagreement is reported on the next run.
+
 Extracted data is cached in data/raw/understat/. Completed seasons are downloaded
 once; the current season is refreshed on every run. Safe to re-run.
 """
@@ -86,6 +91,21 @@ def load_team_lookup(conn: sqlite3.Connection, league_id: int) -> dict[str, int]
     return lookup
 
 
+def fill_result(conn, league_id, season, match_date, home_id, away_id, score, game_id=None) -> int:
+    """Record a result from Understat: update the scheduled game, or add it if it isn't in the database."""
+    if game_id is None:
+        return conn.execute(
+            """
+            INSERT INTO games (league_id, season, date, home_team_id, away_team_id, home_score, away_score, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'final')
+            """,
+            (league_id, season, match_date, home_id, away_id, *score),
+        ).lastrowid
+    conn.execute("UPDATE games SET home_score = ?, away_score = ?, status = 'final' WHERE id = ?",
+                 (*score, game_id))
+    return game_id
+
+
 def main() -> None:
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA foreign_keys = ON")
@@ -101,6 +121,7 @@ def main() -> None:
     unknown_teams: dict[str, set[int]] = {}  # Understat name -> seasons it appeared in
     unlinked: list[str] = []                 # matches we couldn't pair with one of our games
     score_mismatches: list[str] = []         # linked, but the final score disagrees
+    filled: list[str] = []                   # results filled in from Understat
     skipped: list[str] = []                  # seasons that couldn't be downloaded
 
     for season in range(FIRST_SEASON, LAST_SEASON + 1):
@@ -127,20 +148,27 @@ def main() -> None:
             # so season + teams identifies the game without relying on dates.
             games = conn.execute(
                 """
-                SELECT id, home_score, away_score FROM games
+                SELECT id, home_score, away_score, status FROM games
                 WHERE league_id = ? AND season = ? AND home_team_id = ? AND away_team_id = ?
                 """,
                 (league_id, season, home_id, away_id),
             ).fetchall()
-            if len(games) != 1:
+            if len(games) > 1:
                 unlinked.append(f"{label} {home_name} v {away_name} ({m['datetime'][:10]}): "
                                 f"{len(games)} matching games in database")
                 continue
 
-            game_id, home_score, away_score = games[0]
-            if (int(m["goals"]["h"]), int(m["goals"]["a"])) != (home_score, away_score):
-                score_mismatches.append(f"{label} {home_name} v {away_name}: Understat "
-                                        f"{m['goals']['h']}-{m['goals']['a']}, ours {home_score}-{away_score}")
+            score = (int(m["goals"]["h"]), int(m["goals"]["a"]))
+            if not games or games[0][3] != "final":
+                # Finished on Understat, but football-data.co.uk hasn't posted the result yet.
+                game_id = fill_result(conn, league_id, season, m["datetime"][:10], home_id, away_id, score,
+                                      games[0][0] if games else None)
+                filled.append(f"{label} {home_name} {score[0]}-{score[1]} {away_name}")
+            else:
+                game_id, home_score, away_score, _ = games[0]
+                if score != (home_score, away_score):
+                    score_mismatches.append(f"{label} {home_name} v {away_name}: Understat "
+                                            f"{score[0]}-{score[1]}, ours {home_score}-{away_score}")
 
             conn.execute(
                 """
@@ -160,6 +188,10 @@ def main() -> None:
 
     conn.close()
 
+    if filled:
+        print(f"\nResults filled in from Understat, until football-data.co.uk posts them ({len(filled)}):")
+        for line in filled:
+            print("  " + line)
     if unknown_teams:
         print("\nUnderstat team names with no match (add them to team_aliases.sql):")
         for name, seasons in sorted(unknown_teams.items()):

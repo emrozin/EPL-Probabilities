@@ -61,3 +61,17 @@ def test_older_databases_get_the_kickoff_column(project):
     import_fixtures.ensure_kickoff_column(conn)
     import_fixtures.ensure_kickoff_column(conn)  # safe to run twice
     assert "kickoff" in {row[1] for row in conn.execute("PRAGMA table_info(games)")}
+
+
+def test_a_rescheduled_fixture_moves_instead_of_duplicating(project, monkeypatch):
+    conn = sqlite3.connect(project / "data" / "sports.db")
+    conn.executescript(open("schema.sql").read())
+    league = import_epl.get_league_id(conn)
+    for name in ("Arsenal", "Chelsea"):
+        conn.execute("INSERT INTO teams (league_id, name) VALUES (?, ?)", (league, name))
+    conn.execute("""INSERT INTO games (league_id, season, date, home_team_id, away_team_id, status, kickoff)
+                    VALUES (?, 2026, '2026-09-26', 1, 2, 'scheduled', '17:30')""", (league,))
+    conn.commit()
+    monkeypatch.setattr(import_fixtures.requests, "get", lambda *a, **k: FakeResponse())
+    import_fixtures.main()   # the file has Arsenal v Chelsea on 2026-10-03 at 15:00
+    assert conn.execute("SELECT date, kickoff FROM games").fetchall() == [("2026-10-03", "15:00")]

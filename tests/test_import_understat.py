@@ -75,3 +75,32 @@ def test_links_through_aliases_and_catches_score_mismatches(understat, project, 
     assert "Understat 2-1, ours 2-2" in out
     xg = conn.execute("SELECT game_id, home_xg, away_xg FROM game_xg ORDER BY game_id").fetchall()
     assert xg == [(1, 2.4, 0.4), (2, 1.8, 0.9)]
+
+
+def test_results_are_filled_in_until_football_data_posts_them(understat, project, capsys):
+    import import_epl
+    conn = sqlite3.connect(project / "data" / "sports.db")
+    conn.executescript(Path("schema.sql").read_text())
+    conn.execute("INSERT INTO leagues (code, name, sport) VALUES ('EPL', 'Premier League', 'soccer')")
+    for name in ("Arsenal", "Leeds", "Chelsea", "Fulham"):
+        conn.execute("INSERT INTO teams (league_id, name) VALUES (1, ?)", (name,))
+    # Arsenal v Leeds is a scheduled fixture; Chelsea v Fulham isn't in the database at all yet.
+    conn.execute("""INSERT INTO games (league_id, season, date, home_team_id, away_team_id, status)
+                    VALUES (1, 2024, '2024-10-10', 1, 2, 'scheduled')""")
+    conn.commit()
+
+    understat({"dates": [match(1, "Arsenal", "Leeds", (2, 1), (1.9, 0.7)),
+                         match(2, "Chelsea", "Fulham", (5, 1), (2.8, 0.9))]})
+    import_understat.main()
+    out = capsys.readouterr().out
+    assert "Results filled in from Understat" in out and "Arsenal 2-1 Leeds" in out
+    assert "disagree" not in out
+    rows = conn.execute("SELECT home_team_id, home_score, away_score, status FROM games ORDER BY home_team_id").fetchall()
+    assert rows == [(1, 2, 1, "final"), (3, 5, 1, "final")]
+    assert conn.execute("SELECT COUNT(*) FROM game_xg").fetchone()[0] == 2
+
+    # When football-data.co.uk's file arrives (even with a different date), the same rows are updated.
+    import_epl.upsert_game(conn, 1, 2024, "2024-10-11", 1, 2, 2, 1)
+    conn.commit()
+    assert conn.execute("SELECT COUNT(*) FROM games").fetchone()[0] == 2
+    assert conn.execute("SELECT date FROM games WHERE home_team_id = 1").fetchone()[0] == "2024-10-11"

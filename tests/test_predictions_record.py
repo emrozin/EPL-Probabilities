@@ -152,3 +152,27 @@ def test_upcoming_matches_have_a_match_page(fixtures, monkeypatch):
     page = client.get("/match/2026-10-10/team-a-v-team-b/")
     assert page.status_code == 200
     assert "12:30 UK time" in page.text and "Likeliest" not in page.text and "Every possible score" in page.text
+
+
+def test_track_record_shows_only_live_predictions_once_played(fixtures, monkeypatch):
+    from fastapi.testclient import TestClient
+    import app as site
+    import run_backtest
+    run_backtest.main()
+    predict_upcoming.main(["--record"], now=FRIDAY_EVENING)
+    monkeypatch.setattr(site, "DB_PATH", fixtures)
+    site._cache.clear()
+    client = TestClient(site.app)
+    assert "No finished live predictions yet" in client.get("/track-record/").text
+
+    # One of the two predicted matches is played (result filled in, no closing odds yet).
+    conn = sqlite3.connect(fixtures)
+    conn.execute("""UPDATE games SET home_score = 2, away_score = 1, status = 'final'
+                    WHERE date = '2026-10-10' AND kickoff = '12:30'""")
+    conn.commit()
+    site._cache.clear()
+    html = client.get("/track-record/").text
+    assert "1 match since" in html
+    assert html.count('class="match"') == 1            # only the live prediction, not the backtest
+    assert "Saved before kickoff" in html
+    assert "fewer matches until then" in html          # no closing odds for it yet

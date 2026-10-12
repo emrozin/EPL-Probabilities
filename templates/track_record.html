@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% from "macros.html" import finished_match %}
+{% block title %}Track record | Premier League probabilities{% endblock %}
+
+{% block content %}
+<div class="intro">
+  <h1>Track record</h1>
+  <p>Every forecast here was made before kickoff and committed to a public file on GitHub, timestamped, before the match was played. Nothing is recalculated afterwards. This is the live test the backtest can only simulate.</p>
+  <p><a href="{{ record_url }}">See the prediction file</a>{% if history_url %} and <a href="{{ history_url }}">its history of commits</a>{% endif %}.</p>
+</div>
+
+{% if weeks %}
+<section class="detail-section">
+  <h2>So far</h2>
+  <p class="section-note">{{ overall.games }} match{{ 'es' if overall.games != 1 else '' }} since {{ first_date }}. Early on, a handful of results swings these numbers a lot: judge the model on hundreds of matches, not a few rounds.</p>
+  <div class="scorecard">
+    <div class="stat">
+      <p class="stat-value">{{ overall.model_typical }}%</p>
+      <p class="stat-label">Model's typical probability for the actual result (backtest long run: {{ long_run }}%)</p>
+    </div>
+    <div class="stat">
+      <p class="stat-value stat-muted">{{ overall.favourite_won }} of {{ overall.games }}</p>
+      <p class="stat-label">Matches won by the model's favourite outcome</p>
+    </div>
+    {% if overall.market_typical %}
+    <div class="stat">
+      <p class="stat-value stat-muted">{{ overall.model_typical_compared }}% v {{ overall.market_typical }}%</p>
+      <p class="stat-label">Model v closing market, on the {{ overall.compared }} match{{ 'es' if overall.compared != 1 else '' }} with closing odds</p>
+    </div>
+    {% endif %}
+  </div>
+  {% if overall.compared < overall.games %}
+  <p class="note">Closing odds arrive with football-data.co.uk's results file, usually a few days after the matches, so the market comparison covers fewer matches until then.</p>
+  {% endif %}
+</section>
+
+<section class="detail-section">
+  <h2>Week by week</h2>
+  <div class="table-wrap">
+    <table class="dev-table track-table">
+      <thead>
+        <tr><th scope="col">Week</th><th scope="col" class="num">Matches</th><th scope="col" class="num">Model</th>
+            <th scope="col" class="num">Market</th><th scope="col" class="num">Favourite won</th></tr>
+      </thead>
+      <tbody>
+        {% for w in weeks %}
+        <tr>
+          <th scope="row">{{ w.label }}</th>
+          <td class="num">{{ w.scores.games }}</td>
+          <td class="num">{{ w.scores.model_typical }}%</td>
+          <td class="num">{% if w.scores.market_typical %}{{ w.scores.market_typical }}%{% else %}&ndash;{% endif %}</td>
+          <td class="num">{{ w.scores.favourite_won }} of {{ w.scores.games }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="note">Model and market columns are each forecaster's typical probability for the actual results that week; higher is better. The market column covers matches with closing odds.</p>
+</section>
+
+{% for w in weeks %}
+<section class="day">
+  <h2>{{ w.label }}</h2>
+  <ul class="matches">
+    {% for m in w.matches %}{{ finished_match(m) }}{% endfor %}
+  </ul>
+</section>
+{% endfor %}
+{% else %}
+<section class="empty">
+  <h2>No finished live predictions yet</h2>
+  <p>Forecasts are saved before each round's first kickoff and appear here once the matches have been played. <a href="{{ record_url }}">See the prediction file</a>.</p>
+</section>
+{% endif %}
+{% endblock %}

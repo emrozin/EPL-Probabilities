@@ -529,3 +529,7 @@ code {
 }
 .pos-cell.pos-strong { color: #fff; font-weight: 600; }
 .pos-cell.pos-edge { box-shadow: 2px 0 0 0 var(--ink); }
+
+/* ---------- Track record ---------- */
+.track-table { max-width: 44rem; }
+.track-table thead th { font-size: 0.85rem; color: var(--muted); font-weight: 600; }

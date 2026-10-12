@@ -1,8 +1,12 @@
 """Does squad value improve the model? Tune its weight on 2016/17-2020/21, then test on 2021/22-2025/26.
 
 Usage:
-    python import_transfermarkt.py   # once, to build the squad values
-    python tune_squad_value.py       # takes several minutes: it runs about 20 backtests
+    python import_transfermarkt.py            # once, to build Transfermarkt squad values
+    python tune_squad_value.py                # test them (takes a few minutes: about 20 backtests)
+
+    python import_fpl_values.py                         # once, to build FPL squad values
+    python tune_squad_value.py --source fpl             # test FPL prices as they change during the season
+    python tune_squad_value.py --source fpl_preseason   # test each season's starting FPL prices
 
 value_weight 0 is today's model. For each combination of value_weight and shrinkage, a
 walk-forward backtest is scored on the tuning seasons; the best combination is then compared
@@ -11,6 +15,7 @@ This season (2026/27) is left out: there are no squad values for it yet.
 """
 
 import sqlite3
+import sys
 import time
 
 import numpy as np
@@ -19,7 +24,10 @@ import pandas as pd
 from model import SHRINKAGE, add_scores, backtest, load_games, load_market, load_squad_values
 
 DB_PATH = "data/sports.db"
-VALUE_WEIGHTS = [0, 0.1, 0.2, 0.35, 0.5]
+# FPL prices span a much narrower range than market values (roughly 1.4x from the cheapest squad
+# to the priciest, against about 20x), so the same effect needs a much larger weight.
+VALUE_WEIGHTS = {"transfermarkt": [0, 0.1, 0.2, 0.35, 0.5], "fpl": [0, 1, 2, 3, 4, 6],
+                 "fpl_preseason": [0, 1, 2, 3, 4, 6]}
 SHRINKAGES = [0.5, 1, 2, 4]
 TUNE = (2016, 2020)
 TEST = (2021, 2025)
@@ -33,20 +41,28 @@ def scored_backtest(games, seasons, values, **settings) -> pd.DataFrame:
     return results
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
+    argv = sys.argv[1:] if argv is None else argv
+    source = argv[argv.index("--source") + 1] if "--source" in argv else "transfermarkt"
+    if source not in VALUE_WEIGHTS:
+        raise SystemExit(f"Unknown source {source!r}: choose one of {', '.join(VALUE_WEIGHTS)}")
+    weights = VALUE_WEIGHTS[source]
+
     conn = sqlite3.connect(DB_PATH)
     games = load_games(conn)
-    values = load_squad_values(conn)
+    values = load_squad_values(conn, source=source)
     market = load_market(conn, closing=True)
     conn.close()
     if not values:
-        raise SystemExit("No squad values found. Run import_transfermarkt.py first.")
+        script = "import_fpl_values.py" if source.startswith("fpl") else "import_transfermarkt.py"
+        raise SystemExit(f"No {source} squad values found. Run {script} first.")
+    print(f"Squad values from: {source}")
 
     print(f"Tuning on {TUNE[0]}/{(TUNE[0] + 1) % 100:02d}-{TUNE[1]}/{(TUNE[1] + 1) % 100:02d} "
-          f"({len(VALUE_WEIGHTS) * len(SHRINKAGES)} combinations)...\n")
+          f"({len(weights) * len(SHRINKAGES)} combinations)...\n")
     grid = {}
     started = time.time()
-    for weight in VALUE_WEIGHTS:
+    for weight in weights:
         for shrink in SHRINKAGES:
             res = scored_backtest(games, TUNE, values, value_weight=weight, shrinkage=shrink)
             grid[(weight, shrink)] = res["model_logloss"].mean()

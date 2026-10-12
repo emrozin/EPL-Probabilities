@@ -230,10 +230,19 @@ def predict(model, home, away, max_goals=15, rho=RHO):
     return {"exp_home": exp_home, "exp_away": exp_away, "grid": grid, **goal_markets(grid)}
 
 
-def load_squad_values(conn, league="EPL") -> dict:
-    """{'YYYY-MM-DD' Monday: {team: squad value in euros}}; empty if squad values haven't been built."""
+SQUAD_VALUE_TABLES = {"transfermarkt": "squad_values", "fpl": "fpl_squad_values",
+                      "fpl_preseason": "fpl_preseason_squad_values"}
+
+
+def load_squad_values(conn, league="EPL", source="transfermarkt") -> dict:
+    """{'YYYY-MM-DD' Monday: {team: squad value}}; empty if those squad values haven't been built.
+
+    source: "transfermarkt" (market values in euros), "fpl" (Fantasy Premier League prices in £m, as they
+    change during the season) or "fpl_preseason" (each season's starting FPL prices, held all season).
+    """
+    table = SQUAD_VALUE_TABLES[source]
     try:
-        rows = conn.execute("SELECT week, team, value_eur FROM squad_values WHERE league_code = ?", (league,)).fetchall()
+        rows = conn.execute(f"SELECT week, team, value_eur FROM {table} WHERE league_code = ?", (league,)).fetchall()
     except Exception:  # no squad_values table yet
         return {}
     weeks: dict = {}

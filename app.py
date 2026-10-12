@@ -764,6 +764,61 @@ def forecast_page(request: Request):
     })
 
 
+RECORD_URL = "https://github.com/emrozin/epl-probabilities/blob/main/records/live_predictions.csv"
+RECORD_HISTORY_URL = "https://github.com/emrozin/epl-probabilities/commits/main/records/live_predictions.csv"
+
+
+def live_scores(df: pd.DataFrame) -> dict:
+    """Model's (and, where closing odds exist, the market's) record on finished live predictions."""
+    model_p = np.array([getattr(r, f"model_{r.result}") for r in df.itertuples()])
+    favourite = df[["model_home", "model_draw", "model_away"]].to_numpy().argmax(axis=1)
+    actual = df["result"].map({"home": 0, "draw": 1, "away": 2}).to_numpy()
+    with_market = df.dropna(subset=["mkt_home"])
+    market_p = np.array([getattr(r, f"mkt_{r.result}") for r in with_market.itertuples()])
+    model_on_market = np.array([getattr(r, f"model_{r.result}") for r in with_market.itertuples()])
+    return {
+        "games": len(df),
+        "model_typical": typical_probability(-np.log(model_p).mean()),
+        "favourite_won": int((favourite == actual).sum()),
+        "compared": len(with_market),
+        "model_typical_compared": typical_probability(-np.log(model_on_market).mean()) if len(with_market) else None,
+        "market_typical": typical_probability(-np.log(market_p).mean()) if len(with_market) else None,
+    }
+
+
+@app.get("/track-record/", response_class=HTMLResponse)
+def track_record(request: Request):
+    d = data()
+    live = d["predictions"][d["predictions"]["source"] == "Saved before kickoff"]
+    df = (d["finished"].merge(live, on="id")
+                       .merge(d["closing"], on="id", how="left")
+                       .merge(d["totals"], on="id", how="left")
+                       .sort_values(["date", "home"]))
+    if df.empty:
+        return templates.TemplateResponse(request, "track_record.html", {"active": "track", "weeks": [],
+                                                                         "record_url": RECORD_URL})
+    df["week"] = week_of(df["date"])
+
+    weeks = []
+    for week, group in sorted(df.groupby("week"), key=lambda kv: kv[0], reverse=True):
+        first, last = group["date"].min(), group["date"].max()
+        weeks.append({
+            "label": day_label(first) if first == last else f"{day_label(first)} to {day_label(last)}",
+            "scores": live_scores(group),
+            "matches": [match_card(m) for m in group.itertuples()],
+        })
+
+    return templates.TemplateResponse(request, "track_record.html", {
+        "active": "track",
+        "overall": live_scores(df),
+        "weeks": weeks,
+        "first_date": day_label(df["date"].min(), with_year=True),
+        "record_url": RECORD_URL,
+        "history_url": RECORD_HISTORY_URL,
+        "long_run": "37.7",   # the backtest's typical probability on the held-out seasons
+    })
+
+
 @app.get("/backtest/", response_class=HTMLResponse)
 def backtest_page(request: Request):
     d = data()

@@ -182,27 +182,33 @@ def get_team_id(conn: sqlite3.Connection, league_id: int, name: str, cache: dict
     return cache[name]
 
 
+def find_game(conn, league_id, season, home_id, away_id):
+    """In a league season each home/away pairing happens once, so season + teams identifies a game.
+    Matching without the date means a rescheduled match (or one recorded on a different date by
+    another source) updates the same row instead of creating a duplicate."""
+    row = conn.execute(
+        "SELECT id FROM games WHERE league_id = ? AND season = ? AND home_team_id = ? AND away_team_id = ?",
+        (league_id, season, home_id, away_id),
+    ).fetchone()
+    return row[0] if row else None
+
+
 def upsert_game(conn, league_id, season, date, home_id, away_id, home_score, away_score) -> int:
+    game_id = find_game(conn, league_id, season, home_id, away_id)
+    if game_id is None:
+        return conn.execute(
+            """
+            INSERT INTO games (league_id, season, date, home_team_id, away_team_id,
+                               home_score, away_score, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'final')
+            """,
+            (league_id, season, date, home_id, away_id, home_score, away_score),
+        ).lastrowid
     conn.execute(
-        """
-        INSERT INTO games (league_id, season, date, home_team_id, away_team_id,
-                           home_score, away_score, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'final')
-        ON CONFLICT (league_id, season, date, home_team_id, away_team_id)
-        DO UPDATE SET home_score = excluded.home_score,
-                      away_score = excluded.away_score,
-                      status     = 'final'
-        """,
-        (league_id, season, date, home_id, away_id, home_score, away_score),
+        "UPDATE games SET date = ?, home_score = ?, away_score = ?, status = 'final' WHERE id = ?",
+        (date, home_score, away_score, game_id),
     )
-    return conn.execute(
-        """
-        SELECT id FROM games
-        WHERE league_id = ? AND season = ? AND date = ?
-          AND home_team_id = ? AND away_team_id = ?
-        """,
-        (league_id, season, date, home_id, away_id),
-    ).fetchone()[0]
+    return game_id
 
 
 def upsert_stats(conn: sqlite3.Connection, game_id: int, row: pd.Series) -> None:
