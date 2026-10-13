@@ -7,6 +7,7 @@ Used by the notebook and the website:
     scoreline_grid(...)  probability of every exact score, from each side's expected goals
     goal_markets(grid)   home/draw/away, over/under, both teams to score, likeliest scores
     fit_poisson(...)     fit team attack/defense ratings
+    faded_settings(...)  fade the squad-value adjustment as a season goes on
     predict(...)         home/draw/away probabilities for one match
     backtest(...)        walk-forward backtest
     add_scores(...)      log loss and Brier score columns
@@ -115,6 +116,19 @@ def squad_value_prior(teams, squad_values, value_weight):
     if np.isnan(logs).all():
         return np.zeros(len(teams))
     return np.nan_to_num(value_weight * (logs - np.nanmean(logs)), nan=0.0)
+
+
+def faded_settings(value_weight, shrinkage, rounds_played, fade_rounds):
+    """Squad value matters most before a season's results come in; fade it out as rounds are played.
+
+    Every fade_rounds rounds, the squad-value adjustment halves: value_weight shrinks toward 0 and
+    shrinkage back toward today's SHRINKAGE, so late in the season the model is today's model again.
+    fade_rounds None means no fade.
+    """
+    if not fade_rounds:
+        return value_weight, shrinkage
+    remaining = 0.5 ** (rounds_played / fade_rounds)
+    return value_weight * remaining, SHRINKAGE + (shrinkage - SHRINKAGE) * remaining
 
 
 def fit_poisson(train, as_of, half_life_days=HALF_LIFE_DAYS, shrinkage=SHRINKAGE, xg_weight=XG_WEIGHT,
@@ -251,12 +265,18 @@ def load_squad_values(conn, league="EPL", source="transfermarkt") -> dict:
     return weeks
 
 
-def backtest(games, start_season, rho=RHO, squad_values_by_week=None, **model_settings):
+def backtest(games, start_season, rho=RHO, squad_values_by_week=None, value_fade_rounds=None, **model_settings):
     """Walk-forward: each week, train only on earlier matches, then predict that week's games.
 
     squad_values_by_week: optional {Monday: {team: value}}; each week uses that Monday's values,
     which are built only from information available by then.
+    value_fade_rounds: optional; fade the squad-value adjustment as the season goes on (see faded_settings).
     """
+    base_weight = model_settings.pop("value_weight", 0.0)
+    base_shrinkage = model_settings.pop("shrinkage", SHRINKAGE)
+    teams_per_season = pd.concat([games[["season", "home"]].rename(columns={"home": "team"}),
+                                  games[["season", "away"]].rename(columns={"away": "team"})]
+                                 ).groupby("season")["team"].nunique()
     test = games[games["season"] >= start_season].copy()
     test["week"] = pd.to_datetime(test["date"]).dt.to_period("W").dt.start_time
 
@@ -269,7 +289,11 @@ def backtest(games, start_season, rho=RHO, squad_values_by_week=None, **model_se
             continue  # no earlier matches to learn from (e.g. the first weeks of a league's data)
         if squad_values_by_week is not None:
             model_settings["squad_values"] = squad_values_by_week.get(cutoff, {})
-        model = fit_poisson(train, cutoff, **model_settings)
+        season = week_games["season"].iloc[0]
+        played = ((train["season"] == season)).sum()
+        rounds_played = played * 2 / teams_per_season[season]   # 10 matches = 1 round in a 20-team league
+        weight, shrink = faded_settings(base_weight, base_shrinkage, rounds_played, value_fade_rounds)
+        model = fit_poisson(train, cutoff, value_weight=weight, shrinkage=shrink, **model_settings)
         known = set(model["ratings"].index)
 
         for g in week_games.itertuples():

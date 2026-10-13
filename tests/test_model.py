@@ -163,3 +163,29 @@ def test_backtest_uses_each_weeks_squad_values():
     with_values = backtest(games, start_season=2016, squad_values_by_week=values, value_weight=0.3, shrinkage=2)
     assert len(plain) == len(with_values)
     assert not np.allclose(plain["model_home"], with_values["model_home"])
+
+
+def test_fade_halves_the_squad_value_adjustment_and_returns_to_todays_model():
+    assert model.faded_settings(4, 2, rounds_played=0, fade_rounds=6) == (4, 2)
+    weight, shrink = model.faded_settings(4, 2, rounds_played=6, fade_rounds=6)
+    assert weight == pytest.approx(2)
+    assert shrink == pytest.approx(model.SHRINKAGE + (2 - model.SHRINKAGE) / 2)
+    weight, shrink = model.faded_settings(4, 2, rounds_played=200, fade_rounds=6)
+    assert weight == pytest.approx(0, abs=1e-6) and shrink == pytest.approx(model.SHRINKAGE, abs=1e-6)
+    assert model.faded_settings(4, 2, rounds_played=30, fade_rounds=None) == (4, 2)   # no fade
+
+
+def test_faded_squad_value_matters_early_in_a_season_but_not_late():
+    games, _ = simulate_league(seed=10, seasons=range(2014, 2018))   # 2016 is a complete season
+    teams = sorted(set(games["home"]))
+    weeks = pd.to_datetime(games["date"]).dt.to_period("W").dt.start_time.dt.strftime("%Y-%m-%d").unique()
+    values = {w: {t: 50e6 * (i + 1) for i, t in enumerate(teams)} for w in weeks}
+    plain = backtest(games, start_season=2016).set_index("id")
+    faded = backtest(games, start_season=2016, squad_values_by_week=values, value_weight=0.3, shrinkage=2,
+                     value_fade_rounds=2).set_index("id")
+    season_2016 = games[games["season"] == 2016].sort_values("date")["id"]
+    early, late = season_2016.iloc[:20], season_2016.iloc[-20:]
+    early_diff = (plain.loc[early, "model_home"] - faded.loc[early, "model_home"]).abs().mean()
+    late_diff = (plain.loc[late, "model_home"] - faded.loc[late, "model_home"]).abs().mean()
+    assert early_diff > 0.01
+    assert late_diff < 1e-3
