@@ -1,8 +1,8 @@
 """Predict upcoming EPL fixtures and save the predictions.
 
 Usage:
-    python predict_upcoming.py            # on your computer
-    python predict_upcoming.py --record   # the automated weekly run: also updates the official record
+    python -m epl.predict_upcoming            # on your computer
+    python -m epl.predict_upcoming --record   # the automated weekly run: also updates the official record
 
 Fits the model on finished matches before today and predicts every scheduled match
 that hasn't kicked off yet. A match's prediction can be refreshed until kickoff and
@@ -22,9 +22,9 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 
-import records
-from import_fixtures import ensure_kickoff_column
-from model import TRAINING_YEARS, fit_poisson, load_games, load_market, load_totals, predict
+from epl import records
+from epl.import_fixtures import ensure_kickoff_column
+from epl.model import TRAINING_YEARS, fit_poisson, load_games, load_market, load_totals, predict
 
 DB_PATH = "data/sports.db"
 MODEL_NAME = "poisson_xg"

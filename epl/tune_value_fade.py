@@ -1,9 +1,9 @@
 """Does fading squad value out during the season beat using it at full strength all season?
 
 Usage:
-    python tune_value_fade.py                          # FPL preseason prices (usable for live predictions)
-    python tune_value_fade.py --source fpl             # FPL prices as they change during the season
-    python tune_value_fade.py --source transfermarkt   # for comparison only: no data after June 2026
+    python -m epl.tune_value_fade                          # FPL preseason prices (usable for live predictions)
+    python -m epl.tune_value_fade --source fpl             # FPL prices as they change during the season
+    python -m epl.tune_value_fade --source transfermarkt   # for comparison only: no data after June 2026
 
 tune_squad_value.py found squad value helps early in a season and barely at all later. Here the
 squad-value adjustment halves every `fade` rounds (see model.faded_settings), so late in the season
@@ -20,7 +20,7 @@ import time
 
 import pandas as pd
 
-from model import SHRINKAGE, add_scores, backtest, load_games, load_market, load_squad_values
+from epl.model import SHRINKAGE, add_scores, backtest, load_games, load_market, load_squad_values
 
 DB_PATH = "data/sports.db"
 # Squad-value weights around the ones that did best in tune_squad_value.py. FPL prices span a much
@@ -68,7 +68,7 @@ def main(argv: list[str] | None = None) -> None:
     market = load_market(conn, closing=True)
     conn.close()
     if not values:
-        script = "import_fpl_values.py" if source.startswith("fpl") else "import_transfermarkt.py"
+        script = "python -m epl.import_fpl_values" if source.startswith("fpl") else "python -m epl.import_transfermarkt"
         raise SystemExit(f"No {source} squad values found. Run {script} first.")
 
     combos = [(w, s, f) for f in FADES for w in VALUE_WEIGHTS[source] for s in SHRINKAGES]

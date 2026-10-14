@@ -1,8 +1,8 @@
 """Where does the model lose ground to the betting market? A breakdown of the backtest.
 
 Usage:
-    python run_backtest.py      # make sure the backtest predictions are current
-    python error_analysis.py
+    python -m epl.run_backtest      # make sure the backtest predictions are current
+    python -m epl.error_analysis
 
 Each table compares the model's log loss with the closing market's (lower is better).
 "gap" is model minus market per match; "share" is how much of the model's total shortfall
@@ -15,8 +15,8 @@ import sqlite3
 import numpy as np
 import pandas as pd
 
-from model import add_scores, load_games, load_market
-from run_backtest import BACKTEST_NAME, BACKTEST_VERSION
+from epl.model import add_scores, load_games, load_market
+from epl.run_backtest import BACKTEST_NAME, BACKTEST_VERSION
 
 DB_PATH = "data/sports.db"
 MIN_TEAM_MATCHES = 60

@@ -74,7 +74,8 @@ def build_database(path: Path, games: pd.DataFrame) -> None:
 @pytest.fixture
 def project(tmp_path, monkeypatch):
     """A temporary project folder (schema and alias files, empty data/) set as the working directory."""
-    for name in ("schema.sql", "team_aliases.sql"):
+    for name in ("schema.sql", "epl/team_aliases.sql"):
+        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(ROOT / name, tmp_path / name)
     (tmp_path / "data").mkdir()
     monkeypatch.chdir(tmp_path)

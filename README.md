@@ -70,15 +70,7 @@ A **season simulator** plays out the rest of the season 10,000 times with the mo
 ## Findings
 
 - **The gap to the market is spread evenly.** An error analysis split the backtest by team, stage of the season, favorite strength and outcome. The model is well calibrated overall (slightly too cautious on strong favorites), and no single group accounts for the shortfall. That pattern points to missing information, mainly team news, rather than a flaw in the math.
-- **Squad value helps early in the season, and only then.** Pulling ratings toward each squad's value (FPL prices or Transfermarkt valuations) improved early-season predictions but made later ones slightly worse. Making its influence fade as results come in kept nearly all of the early gain. Log loss on the 1,873 held-out matches with squad values available:
-
-  | | Current model | Squad value, full strength | Squad value, fading |
-  |---|---|---|---|
-  | All matches | 0.9735 | 0.9737 | **0.9718** |
-  | Rounds 1–10 | 0.9558 | **0.9492** | 0.9500 |
-  | Rounds 11–38 | 0.9800 | 0.9826 | **0.9797** |
-
-  The fading version closes 11% of the overall gap to the market, and about two-thirds of the gap in rounds 1–10. One caveat: on the tuning seasons the full-strength version scored slightly better, so the held-out seasons decided between two finalists. The fading version is preferred because, by design, it can't cause the late-season loss. It isn't used for live predictions yet.
+- **Squad value helps early in the season, and only then.** See below.
 - **Promoted teams aren't a weak spot.** A dedicated check found the model's error on newly promoted teams' matches only slightly worse than usual, so importing second-division data to rate them wasn't worth the added complexity.
 - **Home advantage is shrinking.** Home teams won around 45–50% of matches in the 1990s and 2000s, and closer to 41–48% recently.
 - **Crowds matter.** In 2020/21, played without fans, away teams won more often than home teams (40.3% vs 37.9%), the only season where that happened.
@@ -86,6 +78,18 @@ A **season simulator** plays out the rest of the season 10,000 times with the mo
 - **Goals and xG work best together.** On validation seasons, goals only scored 0.9571, a 50/50 blend 0.9532, and pure xG 0.9552. Actual goals carry information xG misses, such as finishing and goalkeeping quality.
 - **xG allows a shorter memory.** With xG, the best recency half-life dropped from 365 to 180 days, and less shrinkage was needed.
 - **Dixon–Coles didn't help.** This well-known correction for low-scoring draws made predictions slightly worse: the model already predicted slightly more draws than occurred (23.7% vs 22.5%). The apparent excess of low scores in the raw data came from pooling strong and weak teams, which team-specific ratings already account for.
+
+### Squad value
+
+Pulling ratings toward each squad's value (FPL prices or Transfermarkt valuations) improved early-season predictions but made later ones slightly worse, since by then results already show how good a team is. Making its influence fade as the season goes on (halving every 12 rounds) kept nearly all of the early gain. Log loss on the 1,873 held-out matches with squad values available:
+
+| | Current model | Squad value, full strength | Squad value, fading | Market |
+|---|---|---|---|---|
+| All matches | 0.9735 | 0.9737 | **0.9718** | 0.9570 |
+| Rounds 1–10 | 0.9558 | **0.9492** | 0.9500 | 0.9473 |
+| Rounds 11–38 | 0.9800 | 0.9826 | **0.9797** | 0.9605 |
+
+The fading version closes 11% of the overall gap to the market, and about two-thirds of the gap in rounds 1–10. One caveat: on the tuning seasons the full-strength version scored slightly better, so the held-out seasons decided between two finalists. The fading version is preferred because, by design, it can't cause the late-season loss. It isn't used for live predictions yet.
 
 ## Website
 
@@ -110,46 +114,54 @@ A FastAPI app with Jinja templates, currently run locally:
 
 ```
 update.py               Runs the weekly update, step by step
-import_epl.py           football-data.co.uk results, stats and odds (cached, safe to re-run)
-import_understat.py     Understat xG; fills in results before football-data.co.uk posts them
-import_fixtures.py      Upcoming fixtures and pre-match odds
-model.py                The model, backtest and scoring
-run_backtest.py         Saves walk-forward backtest predictions
-predict_upcoming.py     Predicts upcoming matches and records them before kickoff
-records.py              The official prediction record in records/
-simulate.py             Monte Carlo season simulator
-fetch_availability.py   Daily snapshots of player injuries and availability
+db.py                   Shared database helpers; schema.sql defines one database for every sport
 app.py, templates/      The website (build_site.py renders it as static HTML)
-error_analysis.py       Where the model loses ground to the market
-promoted_teams.py       How the model handles newly promoted teams
-import_fpl_values.py, import_transfermarkt.py, tune_squad_value.py, tune_value_fade.py
-                        Squad-value data and experiments
-schema.sql              Database schema, designed to support more leagues and sports
-team_aliases.sql        Team-name mappings between data sources
-checks.sql              SQL sanity checks and data exploration queries
-poisson_model.ipynb     Model development notebook
+records/                Official live predictions, saved before kickoff
 tests/                  pytest suite
+
+epl/                    Premier League
+  import_epl.py           football-data.co.uk results, stats and odds (cached, safe to re-run)
+  import_understat.py     Understat xG; fills in results before football-data.co.uk posts them
+  import_fixtures.py      Upcoming fixtures and pre-match odds
+  model.py                The model, backtest and scoring
+  run_backtest.py         Saves walk-forward backtest predictions
+  predict_upcoming.py     Predicts upcoming matches and records them before kickoff
+  records.py              The official prediction record in records/
+  simulate.py             Monte Carlo season simulator
+  fetch_availability.py   Daily snapshots of player injuries and availability
+  error_analysis.py       Where the model loses ground to the market
+  promoted_teams.py       How the model handles newly promoted teams
+  import_fpl_values.py, import_transfermarkt.py, tune_squad_value.py, tune_value_fade.py
+                          Squad-value data and experiments
+  team_aliases.sql        Team-name mappings between data sources
+  checks.sql              SQL sanity checks and data exploration queries
+  poisson_model.ipynb     Model development notebook
+
+nfl/                    NFL (in progress)
+  import_nfl.py           nflverse games, results, spreads, totals and moneylines since 1999
+  checks.sql              SQL data checks and exploration queries
 ```
 
 ## Running it
 
-Requires Python 3.11+.
+Requires Python 3.11+. Run everything from the project folder; each script is a module run with `python -m`.
 
 ```bash
-git clone https://github.com/emrozin/epl-probabilities.git
-cd epl-probabilities
+git clone https://github.com/emrozin/sports-probabilities.git
+cd sports-probabilities
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
 python update.py              # builds data/sports.db (the first run downloads every season)
+python -m nfl.import_nfl      # adds the NFL
 uvicorn app:app --reload      # then open http://127.0.0.1:8000
 pytest                        # run the tests
 ```
 
 ## Roadmap
 
-- More sports on the same site (NHL and NBA), chosen from a menu
+- The NFL on the same site, chosen from a sport menu (data imported; model in progress), then college football and basketball
 - Player availability: adjust for injured and suspended players, the largest remaining source of the gap to the market
 - An optional "model + market" forecast that blends the model with pre-match odds
 - Use the fading squad-value adjustment for live predictions

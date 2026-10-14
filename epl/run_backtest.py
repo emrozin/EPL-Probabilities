@@ -1,7 +1,7 @@
 """Run the walk-forward backtest and save its predictions to the database.
 
 Usage:
-    python run_backtest.py
+    python -m epl.run_backtest
 
 For every week since 2016/17, the model is trained only on matches played before
 that week and predicts that week's games. The predictions are saved under their
@@ -13,7 +13,7 @@ results so the backtest covers the latest matches (it takes a few seconds).
 import sqlite3
 from pathlib import Path
 
-from model import backtest, load_games
+from epl.model import backtest, load_games
 
 DB_PATH = "data/sports.db"
 BACKTEST_NAME = "poisson_xg_backtest"

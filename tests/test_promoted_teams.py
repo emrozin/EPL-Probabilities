@@ -2,7 +2,7 @@
 
 import pandas as pd
 
-from promoted_teams import promoted_teams
+from epl.promoted_teams import promoted_teams
 
 
 def test_promoted_teams_are_new_to_the_league_that_season():

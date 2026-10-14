@@ -3,7 +3,7 @@
 import pandas as pd
 import pytest
 
-from import_fpl_values import gameweek_values, player_rows, team_mapping, weekly_values
+from epl.import_fpl_values import gameweek_values, player_rows, team_mapping, weekly_values
 
 
 def gw_row(gw, fixture, element, value, was_home, opponent, kickoff, h_score=1, a_score=0):
@@ -53,7 +53,7 @@ def test_old_values_are_not_used(rows):
 
 
 def test_starting_prices_stand_for_the_whole_season(rows):
-    from import_fpl_values import PRESEASON_STALE_DAYS
+    from epl.import_fpl_values import PRESEASON_STALE_DAYS
     gw = gameweek_values(rows, {(2020, 1): "Arsenal", (2020, 2): "Fulham"}, top=2)
     weeks = pd.DatetimeIndex(["2020-09-21", "2021-04-05"])
     weekly = weekly_values(gw[gw["GW"] == 1], weeks, PRESEASON_STALE_DAYS).set_index(["week", "team"])["value"]

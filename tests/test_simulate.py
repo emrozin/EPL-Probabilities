@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from simulate import remaining_fixtures, simulate_season
+from epl.simulate import remaining_fixtures, simulate_season
 
 
 def test_remaining_fixtures_are_the_unplayed_home_and_away_pairings():

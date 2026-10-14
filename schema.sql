@@ -123,3 +123,28 @@ CREATE TABLE IF NOT EXISTS predictions (
     created_at     TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE (game_id, model_name, model_version, outcome)
 );
+
+-- NFL-specific game details from nflverse. One row per NFL game.
+CREATE TABLE IF NOT EXISTS nfl_game_info (
+    game_id         INTEGER PRIMARY KEY REFERENCES games(id),
+    source_game_id  TEXT NOT NULL UNIQUE,  -- nflverse's id, e.g. '2026_05_SF_SEA'
+    game_type       TEXT NOT NULL,         -- 'REG', or playoffs: 'WC', 'DIV', 'CON', 'SB'
+    week            INTEGER NOT NULL,
+    neutral_site    INTEGER NOT NULL CHECK (neutral_site IN (0, 1)),  -- international games, Super Bowls
+    overtime        INTEGER,
+    home_rest       INTEGER,               -- days since each team's previous game
+    away_rest       INTEGER,
+    div_game        INTEGER,               -- 1 if the teams are in the same division
+    roof            TEXT,                  -- 'outdoors', 'dome', 'closed', 'open'
+    surface         TEXT,
+    temp            INTEGER,               -- degrees Fahrenheit (outdoor games)
+    wind            INTEGER,               -- mph
+    home_qb         TEXT,                  -- starting quarterbacks
+    away_qb         TEXT,
+    home_coach      TEXT,
+    away_coach      TEXT,
+    referee         TEXT,
+    stadium         TEXT,
+    spread_line     REAL,                  -- the market's expected HOME margin: +3.5 = home favored by 3.5
+    total_line      REAL                   -- the market's expected total points
+);

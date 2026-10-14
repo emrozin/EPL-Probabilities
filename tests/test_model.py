@@ -4,9 +4,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import model
+from epl import model
 from conftest import simulate_league
-from model import add_scores, backtest, fit_poisson, predict
+from epl.model import add_scores, backtest, fit_poisson, predict
 
 
 @pytest.fixture(scope="module")
@@ -95,7 +95,7 @@ def test_scores_for_perfect_and_uninformed_forecasts():
 
 def test_goal_markets_are_consistent():
     from scipy.stats import poisson
-    from model import goal_markets, scoreline_grid
+    from epl.model import goal_markets, scoreline_grid
 
     for exp_home, exp_away in [(1.4, 1.2), (2.8, 0.6), (0.7, 0.9)]:
         grid = scoreline_grid(exp_home, exp_away)

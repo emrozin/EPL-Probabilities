@@ -8,10 +8,10 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 import pytest
 
-import predict_upcoming
-import records
+from epl import predict_upcoming
+from epl import records
 from conftest import build_database, simulate_league
-from predict_upcoming import UK, has_started
+from epl.predict_upcoming import UK, has_started
 
 FRIDAY_EVENING = datetime(2026, 10, 9, 20, 0, tzinfo=UK)
 SATURDAY_1PM = datetime(2026, 10, 10, 13, 0, tzinfo=UK)  # after the 12:30 kickoff, before the 15:00 one
@@ -157,7 +157,7 @@ def test_upcoming_matches_have_a_match_page(fixtures, monkeypatch):
 def test_track_record_shows_only_live_predictions_once_played(fixtures, monkeypatch):
     from fastapi.testclient import TestClient
     import app as site
-    import run_backtest
+    from epl import run_backtest
     run_backtest.main()
     predict_upcoming.main(["--record"], now=FRIDAY_EVENING)
     monkeypatch.setattr(site, "DB_PATH", fixtures)

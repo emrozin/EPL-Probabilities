@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-import import_understat
+from epl import import_understat
 
 
 class FakeResponse:
@@ -78,7 +78,7 @@ def test_links_through_aliases_and_catches_score_mismatches(understat, project, 
 
 
 def test_results_are_filled_in_until_football_data_posts_them(understat, project, capsys):
-    import import_epl
+    from epl import import_epl
     conn = sqlite3.connect(project / "data" / "sports.db")
     conn.executescript(Path("schema.sql").read_text())
     conn.execute("INSERT INTO leagues (code, name, sport) VALUES ('EPL', 'Premier League', 'soccer')")

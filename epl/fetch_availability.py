@@ -1,7 +1,7 @@
 """Save a snapshot of every Premier League player's availability (injuries, suspensions, doubts).
 
 Usage:
-    python fetch_availability.py
+    python -m epl.fetch_availability
 
 Source: the official Fantasy Premier League data feed, which lists each player's status
 (available, doubtful, injured, suspended...) and chance of playing. It only ever shows the

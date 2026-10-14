@@ -1,7 +1,7 @@
 """Build each Premier League team's squad value for every week, from Fantasy Premier League prices.
 
 Usage:
-    python import_fpl_values.py
+    python -m epl.import_fpl_values
 
 Source: the FPL Historical Dataset by Vaastav Anand (https://github.com/vaastav/Fantasy-Premier-League),
 MIT license. It has every player's FPL price for every gameweek since 2016/17, and is kept up
@@ -30,8 +30,8 @@ import numpy as np
 import pandas as pd
 import requests
 
-from import_epl import LAST_SEASON
-from model import load_games
+from epl.import_epl import LAST_SEASON
+from epl.model import load_games
 
 DB_PATH = Path("data/sports.db")
 CACHE_DIR = Path("data/fpl")

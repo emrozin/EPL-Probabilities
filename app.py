@@ -24,11 +24,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from model import (TRAINING_YEARS, add_scores, fit_poisson, goal_markets, load_games, load_market,
+from epl.model import (TRAINING_YEARS, add_scores, fit_poisson, goal_markets, load_games, load_market,
                    load_totals, scoreline_grid)
-from predict_upcoming import MODEL_NAME, MODEL_VERSION
-from run_backtest import BACKTEST_NAME, BACKTEST_VERSION, HELD_OUT_FROM, START_SEASON
-from simulate import remaining_fixtures, simulate_season
+from epl.predict_upcoming import MODEL_NAME, MODEL_VERSION
+from epl.run_backtest import BACKTEST_NAME, BACKTEST_VERSION, HELD_OUT_FROM, START_SEASON
+from epl.simulate import remaining_fixtures, simulate_season
 
 ROOT = Path(__file__).resolve().parent
 DB_PATH = ROOT / "data" / "sports.db"

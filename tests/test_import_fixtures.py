@@ -4,8 +4,8 @@ import sqlite3
 
 import pandas as pd
 
-import import_epl
-import import_fixtures
+from epl import import_epl
+from epl import import_fixtures
 
 FIXTURES = ("\ufeffDiv,Date,Time,HomeTeam,AwayTeam,B365H,B365D,B365A,BFEH,BFED,BFEA\n"
             "E0,03/10/2026,15:00,Arsenal,Chelsea,1.9,3.6,4.2,1.98,3.75,4.4\n"

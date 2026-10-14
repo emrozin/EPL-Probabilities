@@ -1,7 +1,7 @@
 """Import Understat expected goals (xG) for EPL matches, 2014/15 onward.
 
 Usage (run import_epl.py first, since this links xG to games already in the database):
-    python import_understat.py
+    python -m epl.import_understat
 
 Understat has no official API. Its league pages load their data from an internal
 JSON endpoint, getLeagueData/<league>/<season>, whose `dates` list holds every
@@ -26,7 +26,7 @@ import requests
 
 DB_PATH = Path("data/sports.db")
 SCHEMA_PATH = Path("schema.sql")
-ALIASES_PATH = Path("team_aliases.sql")
+ALIASES_PATH = Path("epl/team_aliases.sql")
 CACHE_DIR = Path("data/raw/understat")
 
 SOURCE = "understat"
@@ -193,7 +193,7 @@ def main() -> None:
         for line in filled:
             print("  " + line)
     if unknown_teams:
-        print("\nUnderstat team names with no match (add them to team_aliases.sql):")
+        print("\nUnderstat team names with no match (add them to epl/team_aliases.sql):")
         for name, seasons in sorted(unknown_teams.items()):
             print(f"  {name}  (seasons {min(seasons)}-{max(seasons)})")
     if unlinked:

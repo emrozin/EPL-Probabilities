@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import app as site
-import run_backtest
+from epl import run_backtest
 
 
 @pytest.fixture
@@ -110,7 +110,7 @@ def test_unknown_matches_show_the_not_found_page(client):
 
 
 def test_heatmap_marks_only_the_actual_score():
-    from model import scoreline_grid
+    from epl.model import scoreline_grid
     grid = scoreline_grid(1.5, 1.1)
     hm = site.heatmap(grid, actual=(2, 1))
     marked = [(r["goals"], j) for r in hm["rows"] for j, c in enumerate(r["cells"]) if c["actual"]]

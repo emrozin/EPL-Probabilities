@@ -3,7 +3,7 @@
 import pandas as pd
 import pytest
 
-from import_transfermarkt import club_mapping, squad_values
+from epl.import_transfermarkt import club_mapping, squad_values
 
 M = 1_000_000
 

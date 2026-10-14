@@ -1,12 +1,12 @@
 """Does squad value improve the model? Tune its weight on 2016/17-2020/21, then test on 2021/22-2025/26.
 
 Usage:
-    python import_transfermarkt.py            # once, to build Transfermarkt squad values
-    python tune_squad_value.py                # test them (takes a few minutes: about 20 backtests)
+    python -m epl.import_transfermarkt            # once, to build Transfermarkt squad values
+    python -m epl.tune_squad_value                # test them (takes a few minutes: about 20 backtests)
 
-    python import_fpl_values.py                         # once, to build FPL squad values
-    python tune_squad_value.py --source fpl             # test FPL prices as they change during the season
-    python tune_squad_value.py --source fpl_preseason   # test each season's starting FPL prices
+    python -m epl.import_fpl_values                         # once, to build FPL squad values
+    python -m epl.tune_squad_value --source fpl             # test FPL prices as they change during the season
+    python -m epl.tune_squad_value --source fpl_preseason   # test each season's starting FPL prices
 
 value_weight 0 is today's model. For each combination of value_weight and shrinkage, a
 walk-forward backtest is scored on the tuning seasons; the best combination is then compared
@@ -21,7 +21,7 @@ import time
 import numpy as np
 import pandas as pd
 
-from model import SHRINKAGE, add_scores, backtest, load_games, load_market, load_squad_values
+from epl.model import SHRINKAGE, add_scores, backtest, load_games, load_market, load_squad_values
 
 DB_PATH = "data/sports.db"
 # FPL prices span a much narrower range than market values (roughly 1.4x from the cheapest squad
@@ -54,7 +54,7 @@ def main(argv: list[str] | None = None) -> None:
     market = load_market(conn, closing=True)
     conn.close()
     if not values:
-        script = "import_fpl_values.py" if source.startswith("fpl") else "import_transfermarkt.py"
+        script = "python -m epl.import_fpl_values" if source.startswith("fpl") else "python -m epl.import_transfermarkt"
         raise SystemExit(f"No {source} squad values found. Run {script} first.")
     print(f"Squad values from: {source}")
 

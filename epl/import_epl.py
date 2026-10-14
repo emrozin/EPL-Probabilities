@@ -1,8 +1,8 @@
 """Import every season of an English league from football-data.co.uk into SQLite.
 
 Usage:
-    python import_epl.py                  # the Premier League
-    python import_epl.py --league CHAMP   # the Championship (used to rate newly promoted teams)
+    python -m epl.import_epl                  # the Premier League
+    python -m epl.import_epl --league CHAMP   # the Championship (used to rate newly promoted teams)
 
 Imports results, match stats, and all odds the files contain (1X2, over/under 2.5,
 Asian handicap), and keeps every original row as JSON so nothing is lost.
@@ -20,9 +20,8 @@ from pathlib import Path
 import pandas as pd
 import requests
 
-DB_PATH = Path("data/sports.db")
-RAW_DIR = Path("data/raw")
-SCHEMA_PATH = Path("schema.sql")
+from db import DB_PATH, RAW_DIR, SCHEMA_PATH, as_int, get_team_id, insert_price
+
 
 # League code -> its file code on football-data.co.uk and its name.
 LEAGUES = {
@@ -155,31 +154,12 @@ def known_columns() -> set[str]:
     return known
 
 
-def as_int(value):
-    return None if value is None or pd.isna(value) else int(value)
-
-
 def get_league_id(conn: sqlite3.Connection, code: str = "EPL") -> int:
     conn.execute(
         "INSERT OR IGNORE INTO leagues (code, name, sport) VALUES (?, ?, ?)",
         (code, LEAGUES[code]["name"], "soccer"),
     )
     return conn.execute("SELECT id FROM leagues WHERE code = ?", (code,)).fetchone()[0]
-
-
-def get_team_id(conn: sqlite3.Connection, league_id: int, name: str, cache: dict) -> int:
-    """Return the team's id, inserting it first if needed. `cache` avoids repeat lookups."""
-    name = name.strip()
-    if name not in cache:
-        conn.execute(
-            "INSERT OR IGNORE INTO teams (league_id, name) VALUES (?, ?)",
-            (league_id, name),
-        )
-        cache[name] = conn.execute(
-            "SELECT id FROM teams WHERE league_id = ? AND name = ?",
-            (league_id, name),
-        ).fetchone()[0]
-    return cache[name]
 
 
 def find_game(conn, league_id, season, home_id, away_id):
@@ -235,26 +215,6 @@ def save_raw_row(conn: sqlite3.Connection, game_id: int, season: int, row: pd.Se
         "INSERT OR REPLACE INTO raw_source_rows (game_id, source, data) VALUES (?, ?, ?)",
         (game_id, f"football-data.co.uk {division} {season}", row.dropna().to_json()),
     )
-
-
-def insert_price(conn, game_id, bookmaker, market, outcome, price, line, is_closing) -> int:
-    """Insert one price. Returns 1 if a new row was added, 0 otherwise."""
-    if price is None or line is None and market != "1x2":
-        return 0
-    try:
-        price = float(price)
-    except (TypeError, ValueError):
-        return 0  # the occasional junk value in old files
-    if price <= 1.0:
-        return 0  # not a valid decimal price
-    cursor = conn.execute(
-        """
-        INSERT OR IGNORE INTO odds (game_id, bookmaker, market, outcome, price, line, is_closing)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        """,
-        (game_id, bookmaker, market, outcome, price, line, is_closing),
-    )
-    return cursor.rowcount
 
 
 def insert_odds(conn: sqlite3.Connection, game_id: int, row: pd.Series) -> int:

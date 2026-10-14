@@ -1,7 +1,7 @@
 """Download the Transfermarkt tables needed for squad values, and show what's in them.
 
 Usage:
-    python inspect_transfermarkt.py
+    python -m epl.inspect_transfermarkt
 
 Source: transfermarkt-datasets (https://github.com/dcaribou/transfermarkt-datasets),
 published under the CC0 license (free for any use). Its updates paused in mid-July 2026,

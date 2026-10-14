@@ -4,9 +4,9 @@ import pandas as pd
 import pytest
 import requests
 
-import error_analysis
-import fetch_availability
-import run_backtest
+from epl import error_analysis
+from epl import fetch_availability
+from epl import run_backtest
 
 
 def test_error_analysis_runs_and_shares_add_up(league_db, capsys):

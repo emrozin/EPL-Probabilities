@@ -1,9 +1,9 @@
 """How well does the model handle newly promoted teams? Run before (and after) adding Championship data.
 
 Usage:
-    python import_epl.py --league CHAMP   # not needed for this check, but the next step uses it
-    python run_backtest.py                # make sure the backtest predictions are current
-    python promoted_teams.py
+    python -m epl.import_epl --league CHAMP   # not needed for this check, but the next step uses it
+    python -m epl.run_backtest                # make sure the backtest predictions are current
+    python -m epl.promoted_teams
 
 Uses the saved backtest predictions (2016/17 onward) and the closing market to show:
   1. the model's log loss vs the market's on promoted teams' matches, split by how many
@@ -17,8 +17,8 @@ import sqlite3
 import numpy as np
 import pandas as pd
 
-from model import add_scores, load_games, load_market
-from run_backtest import BACKTEST_NAME, BACKTEST_VERSION
+from epl.model import add_scores, load_games, load_market
+from epl.run_backtest import BACKTEST_NAME, BACKTEST_VERSION
 
 DB_PATH = "data/sports.db"
 STAGES = [(1, 5), (6, 10), (11, 19), (20, 38)]  # a promoted team's nth Premier League match of the season

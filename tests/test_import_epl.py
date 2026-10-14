@@ -7,8 +7,8 @@ import pandas as pd
 import pytest
 import requests
 
-import import_epl
-from import_epl import first_value, insert_odds, known_columns, season_code
+from epl import import_epl
+from epl.import_epl import first_value, insert_odds, known_columns, season_code
 
 HEADER = "Div,Date,HomeTeam,AwayTeam,FTHG,FTAG,FTR,HS,AS,B365H,B365D,B365A,PSCH,PSCD,PSCA,B365>2.5,B365<2.5,AHh,B365AHH,B365AHA"
 

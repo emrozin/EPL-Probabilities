@@ -1,7 +1,7 @@
 """Import upcoming EPL fixtures and pre-match odds from football-data.co.uk.
 
 Usage:
-    python import_fixtures.py
+    python -m epl.import_fixtures
 
 fixtures.csv lists the next round of matches for many leagues, with odds collected
 Friday afternoons for weekend games and Tuesday afternoons for midweek games.
@@ -15,7 +15,7 @@ import sqlite3
 import pandas as pd
 import requests
 
-from import_epl import DB_PATH, SCHEMA_PATH, find_game, get_league_id, insert_odds
+from epl.import_epl import DB_PATH, SCHEMA_PATH, find_game, get_league_id, insert_odds
 
 FIXTURES_URL = "https://www.football-data.co.uk/fixtures.csv"
 DIVISION = "E0"  # Premier League's code in football-data.co.uk files

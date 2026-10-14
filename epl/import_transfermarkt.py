@@ -1,8 +1,8 @@
 """Build each Premier League club's squad market value for every week, from Transfermarkt data.
 
 Usage:
-    python inspect_transfermarkt.py   # downloads the tables (once)
-    python import_transfermarkt.py
+    python -m epl.inspect_transfermarkt   # downloads the tables (once)
+    python -m epl.import_transfermarkt
 
 Source: transfermarkt-datasets (CC0 license). Its updates paused in mid-July 2026, so squad
 values stop at June 2026 and don't include this season's transfers.
@@ -28,8 +28,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from inspect_transfermarkt import download
-from model import load_games
+from epl.inspect_transfermarkt import download
+from epl.model import load_games
 
 DB_PATH = Path("data/sports.db")
 LEAGUE_CODE = "EPL"
