@@ -1,9 +1,10 @@
-# The automated weekly update: imports new data, predicts upcoming matches, and commits
-# the predictions to records/live_predictions.csv before kickoff.
+# The automated update: imports new data for every sport, predicts upcoming games, and commits
+# the predictions to records/ (live_predictions.csv for the Premier League,
+# nfl_live_predictions.csv for the NFL) before kickoff.
 #
-# Runs on Tuesdays and Fridays, when football-data.co.uk posts midweek and weekend
-# fixtures with odds, at two times in case the files are posted late. GitHub can start
-# scheduled runs up to an hour late; predict_upcoming.py never touches a match that has
+# Runs on Tuesdays and Fridays, at two times in case data is posted late. Tuesday covers
+# midweek football and Thursday night NFL games; Friday covers the weekend. GitHub can start
+# scheduled runs up to an hour late; the prediction scripts never touch a game that has
 # already kicked off, so a late run can't produce an after-kickoff prediction.
 name: Weekly update
 
@@ -14,7 +15,7 @@ on:
   workflow_dispatch:          # adds a "Run workflow" button in the Actions tab
 
 permissions:
-  contents: write             # allows the run to commit the prediction record
+  contents: write             # allows the run to commit the prediction records
 
 concurrency:
   group: weekly-update        # never run two updates at the same time
@@ -38,6 +39,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run the tests (nothing is updated if any fail)
+        id: tests
         run: pytest
 
       - name: Restore previously downloaded data files
@@ -47,10 +49,13 @@ jobs:
           key: raw-data-${{ github.run_id }}
           restore-keys: raw-data-
 
-      - name: Update data and predictions
+      - name: Update data and predictions for every sport
         run: python update.py --record
 
-      - name: Commit the prediction record and availability snapshot
+      # Runs even if one sport's update failed, so the other sport's predictions are still
+      # saved; the run is still marked as failed so the problem shows up. Skipped if the tests failed.
+      - name: Commit the prediction records and availability snapshot
+        if: ${{ !cancelled() && steps.tests.outcome == 'success' }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
