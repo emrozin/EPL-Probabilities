@@ -563,3 +563,6 @@ code {
 @media (max-width: 40rem) {
   .nfl-teams .team-home::after { content: none; }
 }
+
+.section-gap { margin-top: 2.5rem; }
+.qb-list li { flex-wrap: wrap; }

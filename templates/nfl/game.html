@@ -54,10 +54,18 @@
 <section class="detail-section">
   <h2>{{ 'Starting quarterbacks' if finished else 'Expected starting quarterbacks' }}</h2>
   <ul class="form-list qb-list">
-    <li><strong>{{ g.away }}</strong> {{ qb.away or 'Not known' }}{% if qb.away_change %} <span class="source">not the usual starter</span>{% endif %}</li>
-    <li><strong>{{ g.home }}</strong> {{ qb.home or 'Not known' }}{% if qb.home_change %} <span class="source">not the usual starter</span>{% endif %}</li>
+    {% for side, team in [('away', g.away), ('home', g.home)] %}
+    {% set q = qb[side] %}
+    <li>
+      <strong>{{ team }}</strong> {{ q.name or 'Not known' }}
+      {% if q.starts is not none %}<span class="muted">{{ q.starts }} career start{{ '' if q.starts == 1 else 's' }}{{ ' before this game' if finished }}</span>{% endif %}
+      {% if q.value %}<span class="muted">&middot; model adjustment <strong>{{ q.value }}</strong> points</span>{% endif %}
+      {% if q.change %}<span class="source">not the usual starter</span>{% endif %}
+      {% if not finished and not q.listed and q.name %}<span class="source">assumed: usual starter</span>{% endif %}
+    </li>
+    {% endfor %}
   </ul>
-  {% if qb.away_change or qb.home_change %}<p class="note">The model lowers a team's expected points when its starter isn't the quarterback who started most of its previous eight games{% if not finished %}; this forecast already includes that{% endif %}.</p>{% endif %}
+  <p class="note">Every quarterback has his own adjustment, learned from how his teams scored with him compared with their other quarterbacks, and quarterbacks with few career starts are rated lower until they prove otherwise.{% if not finished %} This forecast uses these quarterbacks.{% endif %}</p>
 </section>
 {% endif %}
 

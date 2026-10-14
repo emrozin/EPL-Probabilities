@@ -15,8 +15,8 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 from nfl.elo import load_nfl_games
-from nfl.model import HALF_LIFE_DAYS, MARGIN_SD, TRAINING_YEARS, add_qb_changes, fit
-from nfl.predict_upcoming import EASTERN, MODEL_NAME, MODEL_VERSION
+from nfl.model import HALF_LIFE_DAYS, INEXPERIENCE_STARTS, MARGIN_SD, TRAINING_YEARS, add_qb_changes, fit, qb_value
+from nfl.predict_upcoming import MODEL_NAME
 from nfl.run_backtest import BACKTEST_NAME, BACKTEST_VERSION, HELD_OUT_FROM, START_SEASON
 from web import BASE, ROOT, day_label, ordinal, signed_number, slugify, templates, typical_probability
 
@@ -30,7 +30,8 @@ RECORD_HISTORY_URL = "https://github.com/emrozin/Sports-Probabilities/commits/ma
 DEVELOPMENT = [
     ("Elo ratings (baseline)", 0.6382),
     ("Points model: offense and defense ratings", 0.6374),
-    ("Points model + quarterback adjustment (current)", 0.6326),
+    ("+ usual-starter quarterback flag", 0.6326),
+    ("+ individual quarterback ratings, replacing the flag (current)", 0.6298),
     ("Betting market (moneylines)", 0.6089),
 ]
 
@@ -129,6 +130,22 @@ def connect():
     return closing(sqlite3.connect(DB_PATH))
 
 
+def load_live(conn) -> pd.DataFrame:
+    """Live predictions from every model version; for each game, the most recently saved one."""
+    df = pd.read_sql("""
+        SELECT p.game_id AS id, p.model_version, MAX(p.created_at) AS created_at,
+               MAX(CASE WHEN p.outcome = 'home' THEN p.probability END) AS model_home,
+               MAX(pg.exp_home) AS exp_home, MAX(pg.exp_away) AS exp_away
+        FROM predictions p
+        LEFT JOIN prediction_goals pg ON pg.game_id = p.game_id
+                                     AND pg.model_name = p.model_name AND pg.model_version = p.model_version
+        WHERE p.model_name = ?
+        GROUP BY p.game_id, p.model_version
+    """, conn, params=(MODEL_NAME,))
+    df = df.sort_values(["created_at", "model_version"]).drop_duplicates("id", keep="last")
+    return df[["id", "model_home", "exp_home", "exp_away"]]
+
+
 def load_predictions(conn, model_name: str, model_version: str) -> pd.DataFrame:
     return pd.read_sql("""
         SELECT p.game_id AS id, MAX(CASE WHEN p.outcome = 'home' THEN p.probability END) AS model_home,
@@ -157,6 +174,7 @@ _cache: dict = {}
 
 GAME_COLUMNS = ["id", "season", "date", "status", "home", "away", "home_score", "away_score", "neutral_site",
                 "game_type", "week", "spread_line", "home_qb", "away_qb", "home_qb_change", "away_qb_change",
+                "home_qb_expected", "away_qb_expected", "home_qb_starts", "away_qb_starts",
                 "kickoff", "source_game_id", "total_line", "home_moneyline", "away_moneyline", "stadium", "overtime"]
 
 
@@ -186,7 +204,7 @@ def data() -> dict:
                                           i.home_moneyline, i.away_moneyline, i.stadium, i.overtime
                                    FROM nfl_game_info i JOIN games g ON g.id = i.game_id""", conn)
             games = add_qb_changes(games).merge(extra, on="id")
-            live = load_predictions(conn, MODEL_NAME, MODEL_VERSION).assign(source="Saved before kickoff")
+            live = load_live(conn).assign(source="Saved before kickoff")
             back = load_predictions(conn, BACKTEST_NAME, BACKTEST_VERSION).assign(source="Backtest")
             predictions = pd.concat([live, back[~back["id"].isin(live["id"])]], ignore_index=True)
             _cache.clear()
@@ -521,9 +539,14 @@ def game_page(request: Request, key: str):
     card = game_card(g)
     finished = g.status == "final"
     qb = None
-    if isinstance(g.home_qb, str) or isinstance(g.away_qb, str):
-        qb = {"home": g.home_qb, "away": g.away_qb, "home_change": bool(g.home_qb_change),
-              "away_change": bool(g.away_qb_change)}
+    if isinstance(g.home_qb_expected, str) or isinstance(g.away_qb_expected, str):
+        model = cached_model() if not finished else None   # current ratings only describe upcoming games
+        value = lambda side: (signed_number(qb_value(model, getattr(g, f"{side}_qb_expected"),
+                                                     getattr(g, f"{side}_qb_starts")), 1) if model else None)
+        qb = {side: {"name": getattr(g, f"{side}_qb_expected"), "listed": isinstance(getattr(g, f"{side}_qb"), str),
+                     "change": bool(getattr(g, f"{side}_qb_change")), "value": value(side),
+                     "starts": None if pd.isna(getattr(g, f"{side}_qb_starts")) else int(getattr(g, f"{side}_qb_starts"))}
+              for side in ("away", "home")}
     expected = None
     if pd.notna(getattr(g, "exp_home", np.nan)):
         expected = {"home": f"{g.exp_home:.1f}", "away": f"{g.exp_away:.1f}"}
@@ -646,5 +669,25 @@ def ratings(request: Request):
     return render(request, "ratings.html", {
         "active": "ratings", "rows": rows, "as_of": day_label(date.today().isoformat()),
         "games_used": model["games_used"], "home_adv": f"{model['home_adv']:.1f}",
-        "qb_change": f"{abs(model['qb_change']):.1f}", "base": f"{model['base']:.1f}",
+        "inexperience": f"{abs(model['inexperience']):.1f}", "inexperience_starts": INEXPERIENCE_STARTS,
+        "average_points": f"{model['base']:.1f}", "quarterbacks": quarterback_rows(model, teams),
     })
+
+
+def quarterback_rows(model: dict, teams: list[str]) -> list[dict]:
+    """Each current team's expected starter for its next game (or its latest starter), best first."""
+    games = data()["games"]
+    rows = []
+    for team in teams:
+        own = games[(games["home"] == team) | (games["away"] == team)].sort_values("date")
+        upcoming = own[own["status"] == "scheduled"]
+        g = (upcoming if len(upcoming) else own).iloc[0 if len(upcoming) else -1]
+        side = "home" if g["home"] == team else "away"
+        qb, starts = g[f"{side}_qb_expected"], g[f"{side}_qb_starts"]
+        if not isinstance(qb, str):
+            continue
+        value = qb_value(model, qb, starts)
+        rows.append({"team": team, "name": qb, "value": signed_number(value, 1), "raw": value,
+                     "class": "good" if value > 0 else "bad" if value < 0 else "",
+                     "starts": None if pd.isna(starts) else int(starts)})
+    return sorted(rows, key=lambda r: -r["raw"])

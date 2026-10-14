@@ -3,7 +3,7 @@
 Usage:
     python -m nfl.run_backtest
 
-For every week since 2010, the points model (with the quarterback adjustment) is trained only on
+For every week since 2010, the points model (with quarterback ratings) is trained only on
 games played before that week and predicts that week's games. The predictions are saved under
 their own model name, separate from live predictions, and the website's results, team and
 backtest pages read them. Re-run after importing new results (it takes a few seconds).
@@ -16,7 +16,7 @@ from nfl.elo import load_nfl_games
 from nfl.model import add_qb_changes, backtest
 
 BACKTEST_NAME = "nfl_points_qb_backtest"
-BACKTEST_VERSION = "v1"
+BACKTEST_VERSION = "v2"   # v2: quarterback ratings
 START_SEASON = 2010
 HELD_OUT_FROM = 2018  # settings were tuned on 2010-2017; 2018 onward is the honest test
 

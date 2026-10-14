@@ -118,6 +118,7 @@ def test_nfl_pages_load(client, path):
     response = client.get(path)
     assert response.status_code == 200
     assert "NFL probabilities" in response.text
+    assert 'href="/static/style.css"' in response.text   # no page may override the site's base path
 
 
 def test_upcoming_page_shows_this_weeks_predictions(client):

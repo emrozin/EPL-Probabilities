@@ -97,7 +97,7 @@ The fading version closes 11% of the overall gap to the market, and about two-th
 
 Data: every game since 1999 from [nflverse](https://github.com/nflverse/nfldata) (scores, spreads, totals, moneylines from 2006, starting quarterbacks, rest days, weather), in the same database.
 
-**Model.** Each team has an offense rating (points scored above average) and a defense rating (points prevented), plus a home advantage fitted from recent games, so it follows the league's shrinking home edge (about 2.7 points in the 2000s, under 2 since 2020). Ratings are fitted by weighted least squares on four years of games, with a 150-day half-life and shrinkage. The expected margin becomes a win probability through a normal distribution (actual margins land about 13 points either side). A **quarterback adjustment** lowers a team's expected points when its starter isn't its usual one; live predictions use nflverse's expected starters for the current week.
+**Model.** Each team has an offense rating (points scored above average) and a defense rating (points prevented), plus a home advantage fitted from recent games, so it follows the league's shrinking home edge (about 2.7 points in the 2000s, under 2 since 2020). Ratings are fitted by weighted least squares on four years of games, with a 150-day half-life and shrinkage. The expected margin becomes a win probability through a normal distribution (actual margins land about 12 points either side). **Every starting quarterback has his own rating**, fitted alongside the team ratings and pulled toward average, plus an inexperience term for quarterbacks with few career starts; live predictions use nflverse's expected starters for the current week.
 
 **Results** on held-out seasons (2018-2025, 2,219 games, ties left out; tuned on 2010-2017), log loss:
 
@@ -106,10 +106,13 @@ Data: every game since 1999 from [nflverse](https://github.com/nflverse/nfldata)
 | Coin flip | 0.6931 | 0% |
 | Elo ratings (baseline) | 0.6382 | 65% |
 | Points model (offense/defense ratings) | 0.6374 | 66% |
-| **Points model + quarterback adjustment** | **0.6326** | **72%** |
+| Points model + usual-starter quarterback flag | 0.6326 | 72% |
+| **Points model + individual quarterback ratings** | **0.6298** | **75%** |
 | Market moneylines | 0.6089 | 100% |
 
-Offense and defense ratings alone did no better than Elo on the held-out seasons, despite looking better on the tuning seasons. The quarterback adjustment made the real difference: when a team started a backup or new quarterback, the model had been overrating it by about two points, while the market had already priced it in.
+Offense and defense ratings alone did no better than Elo on the held-out seasons, despite looking better on the tuning seasons. Quarterbacks made the real difference. A simple flag for teams not starting their usual quarterback came first (the model had been overrating those teams by about two points); individual quarterback ratings then replaced it, helping most in the first four weeks of a season, when teams have new starters (held-out log loss 0.6493 to 0.6458 in weeks 1-4).
+
+**What didn't help** (`nfl/experiments.py`): rest days (byes, short weeks), travel across time zones, domes, weather, and counting last season's games less all scored the same or worse on the tuning seasons, so none are in the model. Weather also can't be used live, since nflverse records it only after a game.
 
 ## Website
 
@@ -163,7 +166,8 @@ epl/                    Premier League
 nfl/                    NFL
   import_nfl.py           nflverse games, results, spreads, totals, moneylines and quarterbacks since 1999
   elo.py, tune_elo.py     Elo baseline and its tuning
-  model.py, tune_model.py Points model with quarterback adjustment, and its tuning and comparison
+  model.py, tune_model.py Points model with quarterback ratings, and its tuning and comparison
+  experiments.py          Tests of rest, travel, domes, weather and other ideas (none helped)
   run_backtest.py         Saves walk-forward backtest predictions
   predict_upcoming.py     Predicts the next 8 days' games and records them before kickoff
   records.py              The official NFL prediction record in records/
@@ -190,7 +194,7 @@ pytest                        # run the tests
 ## Roadmap
 
 - NFL player projections: passing, rushing and receiving yards, touchdowns and receptions
-- Rate individual quarterbacks (how much worse is this particular backup), and rest days
+- Expected points added (EPA), the NFL's equivalent of expected goals
 - College football and basketball
 - Player availability: adjust for injured and suspended players, the largest remaining source of the gap to the market
 - An optional "model + market" forecast that blends the model with pre-match odds

@@ -9,10 +9,9 @@ haven't kicked off. A prediction can be refreshed until kickoff and is never cha
 so stored predictions form a genuine pre-game track record (records/nfl_live_predictions.csv,
 written only by the automated run, like the Premier League's).
 
-Quarterbacks: nflverse lists each team's expected starter for the current week's games. When a
-listed starter isn't the team's usual one, the quarterback adjustment applies, just as in the
-backtest. Further ahead, no starter is listed yet, so the usual starter is assumed; the Tuesday
-and Friday runs refresh the predictions as starters are named.
+Quarterbacks: nflverse lists each team's expected starter for the current week's games, and the
+model uses that quarterback's rating. Further ahead, no starter is listed yet, so the team's usual
+starter is assumed; the Tuesday and Friday runs refresh the predictions as starters are named.
 """
 
 import sqlite3
@@ -29,7 +28,7 @@ from nfl.import_nfl import ensure_columns
 from nfl.model import TRAINING_YEARS, add_qb_changes, fit, predict
 
 MODEL_NAME = "nfl_points_qb"
-MODEL_VERSION = "v1"   # points model with QB adjustment: 150-day half-life, shrinkage 3, margin SD 13
+MODEL_VERSION = "v2"   # v2: quarterback ratings, shrinkage 5, margin SD 12 (v1, until 14 Oct 2026: a usual-starter flag)
 EASTERN = ZoneInfo("America/New_York")  # nflverse dates and kickoff times are US Eastern
 DAYS_AHEAD = 8
 
@@ -77,9 +76,9 @@ def main(argv: list[str] | None = None, now: datetime | None = None) -> None:
 
     lines = []
     for g in to_predict:
-        # Expected starters, where nflverse lists them; otherwise the usual starters (no adjustment).
-        p = predict(model, g.home, g.away, bool(g.neutral_site),
-                    home_qb_change=g.home_qb_change, away_qb_change=g.away_qb_change)
+        # Listed starters where nflverse has them; otherwise each team's usual starter.
+        p = predict(model, g.home, g.away, bool(g.neutral_site), home_qb=g.home_qb_expected,
+                    away_qb=g.away_qb_expected, home_qb_starts=g.home_qb_starts, away_qb_starts=g.away_qb_starts)
         for outcome, prob in (("home", p["home_win"]), ("away", 1 - p["home_win"])):
             conn.execute("""INSERT INTO predictions (game_id, model_name, model_version, outcome, probability)
                             VALUES (?, ?, ?, ?, ?)
@@ -93,7 +92,7 @@ def main(argv: list[str] | None = None, now: datetime | None = None) -> None:
                                       created_at = datetime('now')""",
                      (g.id, MODEL_NAME, MODEL_VERSION, float(p["home_points"]), float(p["away_points"])))
         favorite = g.home if p["margin"] >= 0 else g.away
-        qb_note = "".join(f"  [{team} QB change: {qb}]" for team, qb, changed in
+        qb_note = "".join(f"  [{team}: {qb} starting]" for team, qb, changed in
                           ((g.away, g.away_qb, g.away_qb_change), (g.home, g.home_qb, g.home_qb_change)) if changed)
         lines.append(f"  {g.date} {kickoffs.get(g.id) or '--:--'}  {g.away:>3} at {g.home:<3}  "
                      f"{g.home} {p['home_win']:.0%}  ({favorite} by {abs(p['margin']):.1f}, total {p['total']:.1f}){qb_note}")

@@ -5,7 +5,7 @@
 {% block content %}
 <div class="intro">
   <h1>Team ratings</h1>
-  {% if rows %}<p>Points per game each team scores and stops compared with an average NFL team, as of {{ as_of }}. Based on {{ "{:,}".format(games_used) }} games from the last four years, with recent ones counting much more. An average team scores {{ base }} points; playing at home is worth {{ home_adv }} points of margin, and starting a quarterback who isn't the usual starter costs about {{ qb_change }} points.</p>{% endif %}
+  {% if rows %}<p>Points per game each team scores and stops compared with an average NFL team, as of {{ as_of }}. Based on {{ "{:,}".format(games_used) }} games from the last four years, with recent ones counting much more. An average team scores {{ average_points }} points; playing at home is worth {{ home_adv }} points of margin. Team ratings leave out the quarterback, who has his own rating (below).</p>{% endif %}
 </div>
 
 {% if rows %}
@@ -27,7 +27,28 @@
     </tbody>
   </table>
 </div>
-<p class="note">Offense: extra points scored per game. Defense: points per game kept off the board (positive is good). Overall: the two added together, the expected margin against an average team on a neutral field.</p>
+<p class="note">Offense: extra points scored per game, apart from the quarterback. Defense: points per game kept off the board (positive is good). Overall: the two added together, the expected margin against an average team on a neutral field with an average quarterback.</p>
+
+{% if quarterbacks %}
+<h2 class="section-gap">Quarterback adjustments</h2>
+<p class="section-note">Each team's expected starter for its next game, and how many points per game the model adds or takes away for him. Quarterbacks with few career starts are rated lower (by up to {{ inexperience }} points for a first start), fading out by {{ inexperience_starts }} starts.</p>
+<p class="section-note">This isn't a ranking of the best quarterbacks. A long-time starter's quality is mostly already in his team's offense rating, so established starters sit near zero. What the adjustment captures is how much better or worse his teams have scored with him than with their other quarterbacks, which is what matters when a backup, a rookie or a new signing starts.</p>
+<div class="table-wrap">
+  <table class="ratings">
+    <thead><tr><th scope="col">Quarterback</th><th scope="col">Team</th><th scope="col" class="num">Career starts</th><th scope="col" class="num">Adjustment (points)</th></tr></thead>
+    <tbody>
+      {% for q in quarterbacks %}
+      <tr>
+        <th scope="row">{{ q.name }}</th>
+        <td>{{ team_link(q.team) }}</td>
+        <td class="num">{{ q.starts if q.starts is not none else '&ndash;'|safe }}</td>
+        <td class="num {{ q['class'] }}">{{ q.value }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
 {% else %}
 <section class="empty"><h2>No ratings yet</h2><p>Import NFL games first: <code>python -m nfl.import_nfl</code>.</p></section>
 {% endif %}

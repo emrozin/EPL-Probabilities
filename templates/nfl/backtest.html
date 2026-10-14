@@ -31,7 +31,7 @@
 <section class="headline">
   <h2>How the model works</h2>
   <p class="section-note">Each team has an <strong>offense</strong> rating (points it scores compared with an average team) and a <strong>defense</strong> rating (points it stops). A team's expected points in a game are the league average, plus its offense, minus the opponent's defense, plus half the home advantage at home (minus half away). Ratings are fitted to the last {{ training_years }} years of games, with each game's weight halving every {{ half_life }} days, and pulled toward average so a few games can't produce extreme ratings.</p>
-  <p class="section-note">The <strong>quarterback adjustment</strong> lowers a team's expected points when its starter isn't its usual one (the quarterback who started most of its previous eight games), whether that's an injury backup or a new starter. It's learned from earlier games along with everything else.</p>
+  <p class="section-note"><strong>Quarterback ratings:</strong> every starting quarterback has his own rating, in points per game compared with an average starter, fitted alongside the team ratings. Quarterbacks with few career starts are rated lower until they show otherwise. So a backup, a rookie, a new signing or a starter returning from injury each gets an appropriate value.</p>
   <p class="section-note">The expected margin becomes a win probability through the spread of real NFL results: games typically finish about 13 points either side of what was expected. On these held-out seasons, the model's expected margin missed the actual margin by {{ margins.model }} points on average; the market's spread missed by {{ margins.spread }}.</p>
 </section>
 
@@ -45,7 +45,7 @@
       {% endfor %}
     </tbody>
   </table>
-  <p class="note">Offense and defense ratings alone did no better than simple Elo ratings on the held-out seasons. The quarterback adjustment made the real difference: the model now captures 72% of the market's edge over a coin flip, up from 65%. In games where a team started a backup or new quarterback, the model had been overrating that team by about two points.</p>
+  <p class="note">Offense and defense ratings alone did no better than simple Elo ratings on the held-out seasons. Quarterbacks made the real difference: first a simple flag for teams not starting their usual quarterback, then individual ratings for every quarterback, which helped most in the first four weeks of a season (when teams have new starters). The model now captures 75% of the market's edge over a coin flip, up from 65% for Elo. Rest days, travel, domes and weather were also tested and didn't improve the forecasts.</p>
 </section>
 
 {% if calibration %}

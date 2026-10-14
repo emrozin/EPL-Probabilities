@@ -17,14 +17,18 @@ The actual margin lands around the expected one with a typical spread of `margin
 so the home win probability is P(margin > 0) from a normal distribution. Unlike Elo, this also
 gives an expected score for each team, so its own spread and total.
 
-Quarterbacks: a team whose starting QB isn't its usual starter (the most frequent starter in
-its previous 8 games) scores fewer points than its ratings suggest, whether it's an injury
-backup or a new starter. The model fits that effect, in points, alongside the ratings
-(`qb_change` below), so it's learned only from earlier games like everything else.
+Quarterbacks: every starting quarterback has his own rating, in points per game compared with
+an average starter, fitted alongside the team ratings (so a team's offense rating is what it
+does apart from its quarterback). Ratings are pulled toward average, more strongly for
+quarterbacks with few games, and an inexperience term lowers the expected points of a
+quarterback with few career starts (fading to nothing by 32 starts). So a backup, a rookie or a
+starter returning from injury each gets an appropriate value, learned only from earlier games.
+
+Version 1 used a simpler yes/no flag instead (is this the team's usual starter?); quarterback
+ratings replaced it after scoring better on both the tuning and the held-out seasons.
 """
 
 from collections import Counter
-
 
 import numpy as np
 import pandas as pd
@@ -32,51 +36,71 @@ from scipy.stats import norm
 
 # Tuned on 2010-2017 (nfl/tune_model.py)
 HALF_LIFE_DAYS = 150  # a game's weight halves every 150 days, so last season counts about half as much
-SHRINKAGE = 3.0       # pull toward average ratings (L2 regularization)
-MARGIN_SD = 13.0      # typical gap between the actual and expected margin, in points
+SHRINKAGE = 5.0       # pull team ratings toward average (L2 regularization)
+QB_SHRINKAGE = 10.0   # pull quarterback ratings toward average (stronger: a QB has fewer games than a team)
+INEXPERIENCE_STARTS = 32  # the inexperience term fades to nothing by this many career starts
+MARGIN_SD = 12.0      # typical gap between the actual and expected margin, in points
 TRAINING_YEARS = 4
-
 
 USUAL_STARTER_GAMES = 8
 
 
 def add_qb_changes(games: pd.DataFrame) -> pd.DataFrame:
-    """Add home_qb_change / away_qb_change: 1 if that side's starting QB isn't its usual starter.
+    """Add quarterback columns for each side (home_/away_), all looking only backward:
 
-    The usual starter is the most frequent starter in the team's previous 8 games, so this only
-    looks backward. Games whose starter isn't known (not played yet, or missing) get 0.
+        qb_change   1 if the listed starter isn't the team's usual starter (the most frequent starter
+                    in its previous 8 games); 0 if he is, or if no starter is listed yet
+        qb_expected the listed starter, or the usual starter when none is listed (upcoming games)
+        qb_starts   the expected starter's career starts before this game (since 1999)
     """
     games = games.copy()
     history: dict[str, list] = {}
-    flags = {"home": {}, "away": {}}
+    starts: Counter = Counter()
+    out = {f"{side}_{col}": {} for side in ("home", "away") for col in ("qb_change", "qb_expected", "qb_starts")}
     for g in games.sort_values(["date", "id"]).itertuples():
         for side in ("home", "away"):
             team, qb = getattr(g, side), getattr(g, f"{side}_qb")
             qb = qb if isinstance(qb, str) and qb else None   # missing can arrive as None or NaN
             recent = [q for q in history.get(team, [])[-USUAL_STARTER_GAMES:] if q]
             usual = Counter(recent).most_common(1)[0][0] if recent else None
-            flags[side][g.id] = int(qb is not None and usual is not None and qb != usual)
-        for side in ("home", "away"):
-            qb = getattr(g, f"{side}_qb")
-            if g.status == "final":
-                history.setdefault(getattr(g, side), []).append(qb if isinstance(qb, str) and qb else None)
-    for side in ("home", "away"):
-        games[f"{side}_qb_change"] = games["id"].map(flags[side])
+            expected = qb or usual
+            out[f"{side}_qb_change"][g.id] = int(qb is not None and usual is not None and qb != usual)
+            out[f"{side}_qb_expected"][g.id] = expected
+            out[f"{side}_qb_starts"][g.id] = starts[expected] if expected else np.nan
+        if g.status == "final":
+            for side in ("home", "away"):
+                qb = getattr(g, f"{side}_qb")
+                qb = qb if isinstance(qb, str) and qb else None
+                history.setdefault(getattr(g, side), []).append(qb)
+                if qb:
+                    starts[qb] += 1
+    for column, values in out.items():
+        games[column] = games["id"].map(values)
     return games
 
 
-def fit(train: pd.DataFrame, as_of, half_life_days=HALF_LIFE_DAYS, shrinkage=SHRINKAGE) -> dict:
-    """Fit offense/defense ratings, base points and home advantage from finished games before `as_of`."""
+def inexperience(starts) -> np.ndarray:
+    """1 for a quarterback with no career starts, falling to 0 at INEXPERIENCE_STARTS; 0 if unknown."""
+    starts = np.asarray(starts, dtype=float)
+    return np.where(np.isnan(starts), 0.0, np.clip(1 - starts / INEXPERIENCE_STARTS, 0, 1))
+
+
+def fit(train: pd.DataFrame, as_of, half_life_days=HALF_LIFE_DAYS, shrinkage=SHRINKAGE,
+        qb_shrinkage=QB_SHRINKAGE) -> dict:
+    """Fit team offense/defense ratings, quarterback ratings, base points, home advantage and the
+    inexperience effect from finished games before `as_of` (`train` needs add_qb_changes columns)."""
     teams = sorted(set(train["home"]) | set(train["away"]))
     index = {t: i for i, t in enumerate(teams)}
-    n, games = len(teams), len(train)
+    qbs = sorted(set(train["home_qb"].dropna()) | set(train["away_qb"].dropna()))
+    qb_index = {q: i for i, q in enumerate(qbs)}
+    n, games, nq = len(teams), len(train), len(qbs)
 
     days_ago = (pd.Timestamp(as_of) - pd.to_datetime(train["date"])).dt.days.to_numpy()
     w = np.tile(0.5 ** (days_ago / half_life_days), 2)
 
     # Two rows per game: the home team's points and the away team's points.
-    # Columns: offense (n), defense (n), base, home advantage, QB change.
-    x = np.zeros((2 * games, 2 * n + 3))
+    # Columns: offense (n), defense (n), base, home advantage, inexperience, quarterbacks (nq).
+    x = np.zeros((2 * games, 2 * n + 3 + nq))
     h = train["home"].map(index).to_numpy()
     a = train["away"].map(index).to_numpy()
     rows = np.arange(games)
@@ -89,38 +113,52 @@ def fit(train: pd.DataFrame, as_of, half_life_days=HALF_LIFE_DAYS, shrinkage=SHR
     x[games + rows, n + h] = -1    # home defense
     x[games + rows, 2 * n] = 1
     x[games + rows, 2 * n + 1] = -home_side
-    x[rows, 2 * n + 2] = train["home_qb_change"].to_numpy(float)
-    x[games + rows, 2 * n + 2] = train["away_qb_change"].to_numpy(float)
+    x[rows, 2 * n + 2] = inexperience(train["home_qb_starts"])
+    x[games + rows, 2 * n + 2] = inexperience(train["away_qb_starts"])
+    for side, side_rows in (("home", rows), ("away", games + rows)):
+        qb_col = train[f"{side}_qb"].map(qb_index).to_numpy(float)
+        known = ~np.isnan(qb_col)
+        x[side_rows[known], 2 * n + 3 + qb_col[known].astype(int)] = 1
     y = np.concatenate([train["home_score"].to_numpy(float), train["away_score"].to_numpy(float)])
 
-    penalty = np.zeros(2 * n + 3)
-    penalty[:2 * n] = shrinkage    # shrink team ratings toward 0 (average), not base or home advantage
-    penalty[2 * n + 2] = 1e-6      # keeps the QB effect solvable (at 0) when no game in the window has a QB change
+    penalty = np.zeros(2 * n + 3 + nq)
+    penalty[:2 * n] = shrinkage        # shrink team ratings toward 0 (average), not base or home advantage
+    penalty[2 * n + 2] = 1e-6          # keeps the inexperience effect solvable when no game needs it
+    penalty[2 * n + 3:] = qb_shrinkage  # shrink quarterback ratings toward 0 (an average starter)
     xtw = x.T * w
     beta = np.linalg.solve(xtw @ x + np.diag(penalty), xtw @ y)
     offense, defense = beta[:n] - beta[:n].mean(), beta[n:2 * n] - beta[n:2 * n].mean()
+    qb_ratings = pd.Series(beta[2 * n + 3:], index=qbs, dtype=float)
     return {"ratings": pd.DataFrame({"offense": offense, "defense": defense}, index=teams),
             "base": beta[2 * n] + beta[:n].mean() - beta[n:2 * n].mean(),
             "home_adv": beta[2 * n + 1],
-            "qb_change": beta[2 * n + 2]}   # points a team scores when its QB isn't its usual starter (negative)
+            "inexperience": beta[2 * n + 2],   # points for a quarterback with no career starts (negative)
+            "qb_ratings": qb_ratings}          # points per game vs an average starter
+
+
+def qb_value(model: dict, qb, starts) -> float:
+    """A quarterback's effect on his team's points: his rating (0 if unknown) plus the inexperience term."""
+    rating = model["qb_ratings"].get(qb, 0.0) if isinstance(qb, str) else 0.0
+    return float(rating + model["inexperience"] * inexperience([starts])[0])
 
 
 def predict(model: dict, home: str, away: str, neutral: bool = False, margin_sd=MARGIN_SD,
-            home_qb_change: int = 0, away_qb_change: int = 0) -> dict:
-    """Expected points for each side, the expected home margin and total, and the home win probability."""
+            home_qb=None, away_qb=None, home_qb_starts=np.nan, away_qb_starts=np.nan) -> dict:
+    """Expected points for each side, the expected home margin and total, and the home win probability.
+    home_qb / away_qb: the expected starters (None: no quarterback adjustment)."""
     r = model["ratings"]
     edge = 0.0 if neutral else model["home_adv"] / 2
     home_pts = (model["base"] + edge + r.at[home, "offense"] - r.at[away, "defense"]
-                + model["qb_change"] * home_qb_change)
+                + qb_value(model, home_qb, home_qb_starts))
     away_pts = (model["base"] - edge + r.at[away, "offense"] - r.at[home, "defense"]
-                + model["qb_change"] * away_qb_change)
+                + qb_value(model, away_qb, away_qb_starts))
     margin = home_pts - away_pts
     return {"home_points": home_pts, "away_points": away_pts, "margin": margin, "total": home_pts + away_pts,
             "home_win": float(norm.cdf(margin / margin_sd))}
 
 
 def backtest(games: pd.DataFrame, start_season: int, half_life_days=HALF_LIFE_DAYS, shrinkage=SHRINKAGE,
-             margin_sd=MARGIN_SD, training_years=TRAINING_YEARS) -> pd.DataFrame:
+             margin_sd=MARGIN_SD, training_years=TRAINING_YEARS, qb_shrinkage=QB_SHRINKAGE) -> pd.DataFrame:
     """Walk-forward: for each week of each season, fit on earlier games only, then predict that week.
     `games` needs the QB change columns (add_qb_changes)."""
     played = games[games["status"] == "final"]
@@ -132,13 +170,13 @@ def backtest(games: pd.DataFrame, start_season: int, half_life_days=HALF_LIFE_DA
         train = played[(played["date"] >= start) & (played["date"] < cutoff)]
         if train.empty:
             continue
-        model = fit(train, cutoff, half_life_days, shrinkage)
+        model = fit(train, cutoff, half_life_days, shrinkage, qb_shrinkage)
         known = set(model["ratings"].index)
         for g in week_games.itertuples():
             if g.home not in known or g.away not in known:
                 continue
             p = predict(model, g.home, g.away, bool(g.neutral_site), margin_sd,
-                        g.home_qb_change, g.away_qb_change)
+                        g.home_qb_expected, g.away_qb_expected, g.home_qb_starts, g.away_qb_starts)
             rows.append({"id": g.id, "model_home": p["home_win"], "model_margin": p["margin"],
                          "model_total": p["total"], "home_points": p["home_points"],
                          "away_points": p["away_points"]})

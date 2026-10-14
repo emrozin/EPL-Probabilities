@@ -31,28 +31,33 @@ def simulate(seed=0, seasons=range(2015, 2019), qb_effect=-4.0, home_adv=2.0):
     return pd.DataFrame(rows), off, dfn
 
 
-def test_usual_starter_is_based_only_on_earlier_games():
+def test_quarterback_columns_only_look_backward():
     games = pd.DataFrame([
         {"id": 1, "date": "2020-09-10", "status": "final", "home": "A", "away": "B", "home_qb": "Al", "away_qb": "Bo"},
         {"id": 2, "date": "2020-09-17", "status": "final", "home": "A", "away": "B", "home_qb": "Ann", "away_qb": "Bo"},
-        {"id": 3, "date": "2020-09-24", "status": "scheduled", "home": "B", "away": "A", "home_qb": None, "away_qb": None},
+        {"id": 3, "date": "2020-09-24", "status": "scheduled", "home": "B", "away": "A", "home_qb": None, "away_qb": float("nan")},
     ])
-    flags = add_qb_changes(games).set_index("id")
-    assert flags.loc[1, "home_qb_change"] == 0      # no history yet: not counted as a change
-    assert flags.loc[2, "home_qb_change"] == 1      # Ann replaces the usual starter Al
-    assert flags.loc[2, "away_qb_change"] == 0
-    assert flags.loc[3, ["home_qb_change", "away_qb_change"]].tolist() == [0, 0]   # starter unknown yet
+    q = add_qb_changes(games).set_index("id")
+    assert q.loc[1, "home_qb_change"] == 0 and q.loc[1, "home_qb_starts"] == 0   # no history yet
+    assert q.loc[2, "home_qb_change"] == 1 and q.loc[2, "home_qb_starts"] == 0   # Ann replaces the usual starter
+    assert q.loc[2, "away_qb_starts"] == 1                                        # Bo's second start
+    # Not played yet, no starters listed: the usual starters are assumed, with their starts so far.
+    assert q.loc[3, "home_qb_expected"] == "Bo" and q.loc[3, "home_qb_starts"] == 2
+    assert q.loc[3, ["home_qb_change", "away_qb_change"]].tolist() == [0, 0]
 
 
-def test_fit_recovers_team_strengths_home_advantage_and_qb_effect():
+def test_fit_recovers_team_strengths_home_advantage_and_backup_quarterbacks():
     games, off, dfn = simulate()
     games = add_qb_changes(games)
-    model = fit(games, "2019-06-01", half_life_days=100_000, shrinkage=0.01)
+    model = fit(games, "2019-06-01", half_life_days=100_000, shrinkage=0.01, qb_shrinkage=0.5)
     r = model["ratings"]
-    assert np.corrcoef(r["offense"], pd.Series(off)[r.index])[0, 1] > 0.9
+    starters = [model["qb_ratings"][f"{t}-starter"] for t in r.index]
+    offense = r["offense"] + np.array(starters) - np.mean(starters)   # team + its usual quarterback
+    assert np.corrcoef(offense, pd.Series(off)[r.index])[0, 1] > 0.9
     assert np.corrcoef(r["defense"], pd.Series(dfn)[r.index])[0, 1] > 0.9
     assert model["home_adv"] == pytest.approx(2.0, abs=1.0)
-    assert model["qb_change"] == pytest.approx(-4.0, abs=1.5)
+    gaps = [model["qb_ratings"][f"{t}-backup"] - model["qb_ratings"][f"{t}-starter"] for t in r.index]
+    assert np.mean(gaps) == pytest.approx(-4.0, abs=1.5)    # backups cost about the simulated 4 points
 
 
 def test_predictions_are_consistent():
@@ -63,16 +68,20 @@ def test_predictions_are_consistent():
     assert 0 < p["home_win"] < 1
     neutral = predict(model, "T0", "T1", neutral=True)
     assert neutral["margin"] == pytest.approx(p["margin"] - model["home_adv"])
-    backup = predict(model, "T0", "T1", home_qb_change=1)
-    assert backup["home_win"] < p["home_win"]
+    starter = predict(model, "T0", "T1", home_qb="T0-starter", home_qb_starts=60)
+    backup = predict(model, "T0", "T1", home_qb="T0-backup", home_qb_starts=60)
+    rookie = predict(model, "T0", "T1", home_qb="Unknown rookie", home_qb_starts=0)
+    assert backup["home_win"] < starter["home_win"]
+    assert rookie["home_win"] < predict(model, "T0", "T1", home_qb="Unknown veteran", home_qb_starts=100)["home_win"]
     swapped = predict(model, "T1", "T0", neutral=True)
     assert swapped["home_win"] == pytest.approx(1 - neutral["home_win"])
 
 
-def test_fit_works_when_no_game_has_a_qb_change():
+def test_fit_works_without_any_quarterback_information():
     games, _, _ = simulate(seed=2)
-    model = fit(games.assign(home_qb_change=0, away_qb_change=0), "2019-06-01")
-    assert model["qb_change"] == pytest.approx(0, abs=1e-6)
+    no_qb = games.assign(home_qb=None, away_qb=None, home_qb_starts=np.nan, away_qb_starts=np.nan)
+    model = fit(no_qb, "2019-06-01")
+    assert model["qb_ratings"].empty and model["inexperience"] == pytest.approx(0, abs=1e-6)
 
 
 def test_backtest_never_trains_on_the_week_it_predicts(monkeypatch):
