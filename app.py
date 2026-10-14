@@ -1,4 +1,5 @@
-"""Website: upcoming matches, recent results, league table, team pages, backtest and ratings.
+"""Website: Premier League pages (upcoming matches, results, table, forecast, track record, backtest,
+ratings, team and match pages), plus the NFL pages from nfl/site.py under /nfl/.
 
 Run locally:
     uvicorn app:app --reload
@@ -8,9 +9,6 @@ build_site.py renders every page to static HTML for GitHub Pages. For that, link
 a path prefix (the repository name), which comes from the SITE_BASE environment variable.
 """
 
-import math
-import os
-import re
 import sqlite3
 from contextlib import closing
 from datetime import date
@@ -21,7 +19,6 @@ import pandas as pd
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from epl.model import (TRAINING_YEARS, add_scores, fit_poisson, goal_markets, load_games, load_market,
@@ -29,10 +26,9 @@ from epl.model import (TRAINING_YEARS, add_scores, fit_poisson, goal_markets, lo
 from epl.predict_upcoming import MODEL_NAME, MODEL_VERSION
 from epl.run_backtest import BACKTEST_NAME, BACKTEST_VERSION, HELD_OUT_FROM, START_SEASON
 from epl.simulate import remaining_fixtures, simulate_season
+from web import BASE, ROOT, day_label, ordinal, signed_number, slugify, templates, typical_probability
 
-ROOT = Path(__file__).resolve().parent
 DB_PATH = ROOT / "data" / "sports.db"
-BASE = os.environ.get("SITE_BASE", "").rstrip("/")  # "" locally, "/epl-probabilities" on GitHub Pages
 
 # How each model version scored on the held-out seasons while it was being developed
 # (from poisson_model.ipynb, measured on 1,921 matches in September 2026).
@@ -44,15 +40,8 @@ DEVELOPMENT = [
     ("Closing betting market", 0.9592),
 ]
 
-app = FastAPI(title="Premier League match probabilities")
+app = FastAPI(title="Sports probabilities")
 app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
-templates = Jinja2Templates(directory=ROOT / "templates")
-
-
-def slugify(name: str) -> str:
-    """'Nott'm Forest' -> 'nottm-forest'"""
-    name = name.lower().replace("'", "").replace("&", "and")
-    return re.sub(r"[^a-z0-9]+", "-", name).strip("-")
 
 
 def team_url(name: str, season: int | None = None) -> str:
@@ -65,13 +54,13 @@ def match_url(match_date: str, home: str, away: str) -> str:
 
 
 templates.env.globals["team_url"] = team_url
-templates.env.globals["base"] = BASE
 
 
 @app.exception_handler(StarletteHTTPException)
 async def http_error(request: Request, exc: StarletteHTTPException):
     if exc.status_code == 404:
-        return templates.TemplateResponse(request, "404.html", {"active": None}, status_code=404)
+        sport = "nfl" if request.url.path.startswith(f"{BASE}/nfl/") or request.url.path == f"{BASE}/nfl" else "epl"
+        return templates.TemplateResponse(request, "404.html", {"active": None, "sport": sport}, status_code=404)
     return HTMLResponse(str(exc.detail), status_code=exc.status_code)
 
 
@@ -81,23 +70,9 @@ def connect():
     return closing(sqlite3.connect(DB_PATH))
 
 
-def day_label(iso_date: str, with_year: bool = False) -> str:
-    """'2026-10-03' -> 'Saturday 3 October' (or 'Sat 3 Oct 2026' with_year)"""
-    d = pd.Timestamp(iso_date)
-    if with_year:
-        return f"{d:%a} {d.day} {d:%b %Y}"
-    return f"{d:%A} {d.day} {d:%B}"
-
-
 def season_label(season: int) -> str:
     """2024 -> '2024/25'"""
     return f"{season}/{(season + 1) % 100:02d}"
-
-
-def ordinal(n: int) -> str:
-    """1 -> '1st', 12 -> '12th', 22 -> '22nd'"""
-    suffix = "th" if 10 <= n % 100 <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
-    return f"{n}{suffix}"
 
 
 def percentages(home: float, draw: float, away: float) -> dict:
@@ -116,24 +91,6 @@ def signed(value: int) -> str:
     if value < 0:
         return f"\u2212{-value}%"
     return "0%"
-
-
-def signed_number(value: float, decimals: int = 0) -> str:
-    """Goal difference style: +7, −3, 0"""
-    text = f"{abs(value):.{decimals}f}"
-    if round(value, decimals) > 0:
-        return "+" + text
-    if round(value, decimals) < 0:
-        return "\u2212" + text
-    return text
-
-
-def typical_probability(log_loss: float) -> str:
-    """Log loss as a percentage: the typical probability given to what actually happened.
-
-    One decimal place, because the model and the market are often less than a point apart.
-    """
-    return f"{math.exp(-log_loss) * 100:.1f}"
 
 
 def load_predictions(conn, model_name: str, model_version: str) -> pd.DataFrame:
@@ -764,8 +721,8 @@ def forecast_page(request: Request):
     })
 
 
-RECORD_URL = "https://github.com/emrozin/epl-probabilities/blob/main/records/live_predictions.csv"
-RECORD_HISTORY_URL = "https://github.com/emrozin/epl-probabilities/commits/main/records/live_predictions.csv"
+RECORD_URL = "https://github.com/emrozin/Sports-Probabilities/blob/main/records/live_predictions.csv"
+RECORD_HISTORY_URL = "https://github.com/emrozin/Sports-Probabilities/commits/main/records/live_predictions.csv"
 
 
 def live_scores(df: pd.DataFrame) -> dict:
@@ -919,3 +876,9 @@ def ratings(request: Request):
         "home_advantage": round((model["home_adv"] - 1) * 100),
         "matches_used": model["matches_used"],
     })
+
+
+# The NFL pages live in nfl/site.py, under /nfl/.
+from nfl.site import router as nfl_router  # noqa: E402
+
+app.include_router(nfl_router)

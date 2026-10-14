@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% from "nfl/macros.html" import game_row %}
+{% block title %}Track record | NFL probabilities{% endblock %}
+
+{% block content %}
+<div class="intro">
+  <h1>Track record</h1>
+  <p>Every forecast here was made before kickoff and committed to a public file on GitHub, timestamped, before the game was played. Nothing is recalculated afterwards. This is the live test the backtest can only simulate.</p>
+  <p><a href="{{ record_url }}">See the prediction file</a> and <a href="{{ history_url }}">its history of commits</a>.</p>
+</div>
+
+{% if weeks %}
+<section class="detail-section">
+  <h2>So far</h2>
+  <p class="section-note">{{ overall.games }} game{{ 's' if overall.games != 1 else '' }} with a winner since {{ first_date }}{% if overall.ties %} (and {{ overall.ties }} tie{{ 's' if overall.ties != 1 else '' }}, left out){% endif %}. A few weeks of NFL games swing these numbers a lot: judge the model on hundreds of games, not a handful.</p>
+  <div class="scorecard">
+    <div class="stat">
+      <p class="stat-value">{{ overall.model_typical }}%</p>
+      <p class="stat-label">Model's typical probability for the actual winner{% if long_run %} (backtest long run: {{ long_run }}%){% endif %}</p>
+    </div>
+    <div class="stat">
+      <p class="stat-value stat-muted">{{ overall.favorite_won }} of {{ overall.games }}</p>
+      <p class="stat-label">Games won by the model's favorite</p>
+    </div>
+    {% if overall.market_typical %}
+    <div class="stat">
+      <p class="stat-value stat-muted">{{ overall.model_typical_compared }}% v {{ overall.market_typical }}%</p>
+      <p class="stat-label">Model v closing market, on the {{ overall.compared }} game{{ 's' if overall.compared != 1 else '' }} with closing odds</p>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="detail-section">
+  <h2>Week by week</h2>
+  <div class="table-wrap">
+    <table class="dev-table track-table">
+      <thead><tr><th scope="col">Week</th><th scope="col" class="num">Games</th><th scope="col" class="num">Model</th>
+                 <th scope="col" class="num">Market</th><th scope="col" class="num">Favorite won</th></tr></thead>
+      <tbody>
+        {% for w in weeks %}
+        <tr>
+          <th scope="row">{{ w.label }}</th>
+          <td class="num">{{ w.scores.games }}</td>
+          <td class="num">{% if w.scores.model_typical %}{{ w.scores.model_typical }}%{% else %}&ndash;{% endif %}</td>
+          <td class="num">{% if w.scores.market_typical %}{{ w.scores.market_typical }}%{% else %}&ndash;{% endif %}</td>
+          <td class="num">{{ w.scores.favorite_won }} of {{ w.scores.games }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="note">Model and market columns are each forecaster's typical probability for the actual winners that week; higher is better.</p>
+</section>
+
+{% for w in weeks %}
+<section class="day">
+  <h2>{{ w.label }}</h2>
+  <ul class="matches">{% for g in w.games %}{{ game_row(g) }}{% endfor %}</ul>
+</section>
+{% endfor %}
+{% else %}
+<section class="empty">
+  <h2>No finished live predictions yet</h2>
+  <p>Forecasts are saved before kickoff on Tuesdays and Fridays, and appear here once the games have been played. <a href="{{ record_url }}">See the prediction file</a>.</p>
+</section>
+{% endif %}
+{% endblock %}

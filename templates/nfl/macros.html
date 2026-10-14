@@ -1,0 +1,103 @@
+{# NFL: two-way bar, away team (gold) on the left and home team (blue) on the right, like "SEA at DEN".
+   kind: 'model' (thick, with numbers) or 'market' (thin). result: 'home' / 'away' / 'tie' for finished games. #}
+{% macro bar(p, kind, result=None, away='Away', home='Home') %}
+  <div class="bar bar-{{ kind }}" role="img"
+       aria-label="{{ 'Model' if kind == 'model' else 'Market' }}: {{ away }} {{ p.away }}%, {{ home }} {{ p.home }}%">
+    {% for side in ['away', 'home'] %}
+      <span class="seg seg-{{ side }}{% if result and result != side %} seg-soft{% endif %}"
+            style="flex-basis: {{ p[side] }}%">{% if kind == 'model' and p[side] >= 12 %}{{ p[side] }}%{% endif %}</span>
+    {% endfor %}
+  </div>
+{% endmacro %}
+
+{% macro team_link(code, current=None, full=False) -%}
+  {% set label = nfl_name(code) if full else code %}
+  {% if code == current %}<span title="{{ nfl_name(code) }}">{{ label }}</span>{% else %}<a class="team-link" href="{{ nfl_team_url(code) }}" title="{{ nfl_name(code) }}">{{ label }}</a>{% endif %}
+{%- endmacro %}
+
+{% macro badge(letter) -%}
+  <span class="badge badge-{{ letter }}" title="{{ {'W': 'Win', 'L': 'Loss', 'T': 'Tie'}[letter] }}">{{ letter }}</span>
+{%- endmacro %}
+
+{# The lines under the bars: model and market spread and total, and what actually happened. #}
+{% macro lines(g) %}
+  <p class="goals-line">
+    {% if g.model_line %}<span>Model <strong>{{ g.model_line }}</strong>, total <strong>{{ g.model_total }}</strong></span>{% endif %}
+    {% if g.market_line %}<span class="muted">Market {{ g.market_line }}{% if g.market_total %}, total {{ g.market_total }}{% endif %}</span>{% endif %}
+    {% if g.finished %}<span>Result <strong>{{ g.actual_line }}</strong>, total <strong>{{ g.actual_total }}</strong></span>{% endif %}
+  </p>
+{% endmacro %}
+
+{# One game: upcoming or finished. current_team: on a team page, that team isn't linked. #}
+{% macro game_row(g, current_team=None) %}
+  <li class="match">
+    <div class="teams-result">
+      {% set away_class = {'away': 'winner', 'home': 'loser'}.get(g.result, 'level') if g.finished else '' %}
+      {% set home_class = {'home': 'winner', 'away': 'loser'}.get(g.result, 'level') if g.finished else '' %}
+      <p class="teams nfl-teams{% if g.finished %} finished{% endif %}">
+        {% set details = ([g.date, g.week] if current_team else ([g.week] if g.playoff else []))
+                         + ([g.kickoff] if g.kickoff and not g.finished else []) + (['neutral site'] if g.neutral else []) %}
+        {% if details %}<span class="match-date">{{ details|join(' &middot; '|safe) }}</span>{% endif %}
+        <span class="team-away {{ away_class }}">{{ team_link(g.away, current_team) }}</span>
+        <span class="team-home {{ home_class }}"><span class="at">at</span> {{ team_link(g.home, current_team) }}</span>
+      </p>
+      {% if g.finished %}
+      <p class="score">{% if g.outcome %}{{ badge(g.outcome) }} {% endif %}<a class="score-link" href="{{ g.url }}" title="Game details">{{ g.score }}</a></p>
+      {% endif %}
+    </div>
+    <div class="bars">
+      {% if g.model %}
+        {{ bar(g.model, 'model', g.result if g.finished else None, g.away, g.home) }}
+        {% if g.market %}{{ bar(g.market, 'market', g.result if g.finished else None, g.away, g.home) }}{% endif %}
+        <p class="market-numbers">
+          {% if g.finished and g.model_actual is defined %}
+            Model gave the winner <strong>{{ g.model_actual }}%</strong>{% if g.market_actual is not none %}, market {{ g.market_actual }}%{% endif %}
+          {% elif g.finished %}
+            A tie: neither side won
+          {% else %}
+            {% if g.market %}Market {{ g.away }} {{ g.market.away }}% / {{ g.home }} {{ g.market.home }}%{% else %}No market odds yet{% endif %}
+          {% endif %}
+          {% if g.source %}<span class="source">{{ g.source }}</span>{% endif %}
+        </p>
+        {{ lines(g) }}
+      {% else %}
+        <p class="market-numbers">No model prediction for this game.</p>
+        {% if g.finished %}{{ lines(g) }}{% endif %}
+      {% endif %}
+      {% if not g.finished %}<p class="details-link"><a href="{{ g.url }}">Game details &rarr;</a></p>{% endif %}
+    </div>
+  </li>
+{% endmacro %}
+
+{% macro season_picker(seasons) %}
+  <div class="season-picker">
+    <label for="season">Season</label>
+    <select id="season" onchange="window.location.href = this.value">
+      {% for s in seasons %}<option value="{{ s.url }}" {% if s.selected %}selected{% endif %}>{{ s.label }}</option>{% endfor %}
+    </select>
+  </div>
+{% endmacro %}
+
+{% macro key() %}
+  <p class="key">
+    <span class="key-item"><span class="swatch seg-away"></span>Away team wins</span>
+    <span class="key-item"><span class="swatch seg-home"></span>Home team wins</span>
+  </p>
+{% endmacro %}
+
+{% macro scorecard(s, what='games') %}
+  <div class="scorecard">
+    <div class="stat">
+      <p class="stat-value">{{ s.model_typical }}%</p>
+      <p class="stat-label">Model's typical probability for the actual winner</p>
+    </div>
+    <div class="stat">
+      <p class="stat-value stat-muted">{{ s.market_typical }}%</p>
+      <p class="stat-label">Betting market's</p>
+    </div>
+    <div class="stat">
+      <p class="stat-value stat-muted">{{ s.model_favorite_won }} of {{ s.games }}</p>
+      <p class="stat-label">{{ what|capitalize }} won by the model's favorite</p>
+    </div>
+  </div>
+{% endmacro %}

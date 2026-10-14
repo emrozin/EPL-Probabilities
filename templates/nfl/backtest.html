@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Backtest | NFL probabilities{% endblock %}
+
+{% block content %}
+<div class="intro">
+  <h1>How good is the model?</h1>
+  <p>Every week since {{ start }}, the model was trained only on games played before that week, then asked to predict that week's games. Its forecasts are compared with the betting market's moneylines, with the bookmaker's margin removed: the toughest benchmark there is.</p>
+</div>
+
+{% if seasons %}
+<section class="headline">
+  <h2>On seasons it never saw during development</h2>
+  <p class="section-note">Model settings were chosen using {{ start }} to {{ tuned_through }}. These numbers cover {{ headline.from }} onward: {{ "{:,}".format(headline.games) }} games (ties left out).</p>
+  <div class="scorecard">
+    <div class="stat">
+      <p class="stat-value">{{ headline.model_typical }}%</p>
+      <p class="stat-label">Model's typical probability for the actual winner</p>
+    </div>
+    <div class="stat">
+      <p class="stat-value stat-muted">{{ headline.market_typical }}%</p>
+      <p class="stat-label">Betting market's</p>
+    </div>
+    <div class="stat">
+      <p class="stat-value stat-muted">50.0%</p>
+      <p class="stat-label">A coin flip</p>
+    </div>
+  </div>
+  <p class="note">The typical probability is log loss converted into a percentage: how much chance a forecast usually gave to what actually happened. Log loss punishes confident wrong forecasts heavily. The model scores {{ headline.model }} and the market {{ headline.market }}; lower is better. The model's favorite won {{ headline.picked }}% of these games, the market's {{ headline.market_picked }}%.</p>
+</section>
+
+<section class="headline">
+  <h2>How the model works</h2>
+  <p class="section-note">Each team has an <strong>offense</strong> rating (points it scores compared with an average team) and a <strong>defense</strong> rating (points it stops). A team's expected points in a game are the league average, plus its offense, minus the opponent's defense, plus half the home advantage at home (minus half away). Ratings are fitted to the last {{ training_years }} years of games, with each game's weight halving every {{ half_life }} days, and pulled toward average so a few games can't produce extreme ratings.</p>
+  <p class="section-note">The <strong>quarterback adjustment</strong> lowers a team's expected points when its starter isn't its usual one (the quarterback who started most of its previous eight games), whether that's an injury backup or a new starter. It's learned from earlier games along with everything else.</p>
+  <p class="section-note">The expected margin becomes a win probability through the spread of real NFL results: games typically finish about 13 points either side of what was expected. On these held-out seasons, the model's expected margin missed the actual margin by {{ margins.model }} points on average; the market's spread missed by {{ margins.spread }}.</p>
+</section>
+
+<section class="development">
+  <h2>What improved the model</h2>
+  <p class="section-note">Log loss on the held-out seasons (2,219 games, October 2026). Lower is better; a coin flip scores 0.6931.</p>
+  <table class="dev-table">
+    <tbody>
+      {% for d in development %}
+      <tr{% if loop.last %} class="reference"{% endif %}><th scope="row">{{ d.label }}</th><td class="num">{{ d.value }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="note">Offense and defense ratings alone did no better than simple Elo ratings on the held-out seasons. The quarterback adjustment made the real difference: the model now captures 72% of the market's edge over a coin flip, up from 65%. In games where a team started a backup or new quarterback, the model had been overrating that team by about two points.</p>
+</section>
+
+{% if calibration %}
+<section class="development">
+  <h2>When the model says 70%, does it happen 70% of the time?</h2>
+  <p class="section-note">Held-out games grouped by the model's chance of a home win.</p>
+  <table class="dev-table track-table">
+    <thead><tr><th scope="col">Model's home win chance</th><th scope="col" class="num">Games</th><th scope="col" class="num">Average forecast</th><th scope="col" class="num">Home team won</th></tr></thead>
+    <tbody>
+      {% for c in calibration %}
+      <tr><th scope="row">{{ c.range }}</th><td class="num">{{ c.games }}</td><td class="num">{{ c.predicted }}</td><td class="num">{{ c.actual }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
+<section class="seasons">
+  <h2>Season by season</h2>
+  <p class="section-note">Log loss for each season, and how far behind (or ahead of) the market the model finished.</p>
+  <div class="table-wrap">
+    <table class="season-table">
+      <thead>
+        <tr>
+          <th scope="col">Season</th><th scope="col" class="num">Games</th><th scope="col" class="num">Model</th><th scope="col" class="num">Market</th>
+          <th scope="col" class="gap-head"><span>&larr; Model better</span><span>Market better &rarr;</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in seasons %}
+        <tr{% if s.held_out %} class="held-out"{% endif %}>
+          <th scope="row">{{ s.label }}{% if not s.held_out %} <span class="tag">tuning</span>{% endif %}</th>
+          <td class="num">{{ s.games }}</td><td class="num">{{ s.model }}</td><td class="num">{{ s.market }}</td>
+          <td class="gap-cell">
+            <div class="gap-track" role="img" aria-label="{{ 'Market' if s.market_better else 'Model' }} better by {{ s.gap }}">
+              <span class="gap-bar {{ 'gap-market' if s.market_better else 'gap-model' }}" style="width: {{ s.width / 2 }}%"></span>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="note">The market stays ahead: it knows which quarterback is starting and how good he is, injuries, weather and professional bettors' views. The current season's numbers rest on few games and swing a lot.</p>
+</section>
+{% else %}
+  <section class="empty">
+    <h2>No backtest results yet</h2>
+    <p>Run <code>python -m nfl.run_backtest</code> to generate them.</p>
+  </section>
+{% endif %}
+{% endblock %}

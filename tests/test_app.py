@@ -13,8 +13,11 @@ from epl import run_backtest
 
 @pytest.fixture
 def client(league_db, monkeypatch):
+    import nfl.site
     monkeypatch.setattr(site, "DB_PATH", league_db)
+    monkeypatch.setattr(nfl.site, "DB_PATH", league_db)   # a Premier League-only database: NFL pages are empty
     site._cache.clear()
+    nfl.site._cache.clear()
     run_backtest.main()  # writes backtest predictions into the test database
     return TestClient(site.app)
 

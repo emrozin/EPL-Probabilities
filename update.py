@@ -1,11 +1,11 @@
-"""Run the whole weekly update in the right order, stopping at the first failure.
+"""Run the whole update for every sport, in the right order.
 
 Usage:
     python update.py            # update data and predictions
     python update.py --build    # ...and rebuild the static site in docs/
-    python update.py --record   # ...and update the official prediction record (the automated run uses this)
+    python update.py --record   # ...and update the official prediction records (the automated run uses this)
 
-Steps (Premier League, in the epl/ folder):
+Premier League (epl/):
     1. import_epl          new results, stats and odds from football-data.co.uk
     2. import_understat    expected goals (xG) for the new results
     3. run_backtest        backtest predictions, now including the latest matches
@@ -13,11 +13,18 @@ Steps (Premier League, in the epl/ folder):
     5. predict_upcoming    predictions for those fixtures, saved before kickoff
     6. fetch_availability  a snapshot of player injuries and availability (collected for later use)
 
-Each step is a module run with "python -m", e.g. python -m epl.import_epl.
-The NFL joins the update once its model is ready.
+NFL (nfl/):
+    1. import_nfl          results, schedule and betting lines from nflverse
+    2. run_backtest        backtest predictions, now including the latest games
+    3. predict_upcoming    predictions for the next 8 days' games, saved before kickoff
 
-Run it before the first kickoff of each round (for weekend matches, Friday evening,
-after football-data.co.uk posts the fixtures).
+Each step is a module run with "python -m", e.g. python -m epl.import_epl. Within a sport, a
+failed step stops that sport's remaining steps (they depend on it), but the other sport still
+runs, so a problem with one data source never holds up the other. The exit code is 1 if
+anything failed, so the automated run shows it.
+
+The automated run happens on Tuesdays and Fridays: Tuesday covers Thursday night NFL games
+and midweek football; Friday covers the weekend.
 """
 
 import os
@@ -26,52 +33,74 @@ import sys
 import time
 from pathlib import Path
 
-STEPS = [
-    ("epl.import_epl", "Results, stats and odds"),
-    ("epl.import_understat", "Expected goals (xG)"),
-    ("epl.run_backtest", "Backtest predictions"),
-    ("epl.import_fixtures", "Upcoming fixtures and odds"),
-    ("epl.predict_upcoming", "Predictions for upcoming matches"),
-    ("epl.fetch_availability", "Player availability snapshot"),
-]
+SPORTS = {
+    "Premier League": [
+        ("epl.import_epl", "Results, stats and odds"),
+        ("epl.import_understat", "Expected goals (xG)"),
+        ("epl.run_backtest", "Backtest predictions"),
+        ("epl.import_fixtures", "Upcoming fixtures and odds"),
+        ("epl.predict_upcoming", "Predictions for upcoming matches"),
+        ("epl.fetch_availability", "Player availability snapshot"),
+    ],
+    "NFL": [
+        ("nfl.import_nfl", "Games, results and lines"),
+        ("nfl.run_backtest", "Backtest predictions"),
+        ("nfl.predict_upcoming", "Predictions for upcoming games"),
+    ],
+}
+RECORDING_STEPS = {"epl.predict_upcoming", "nfl.predict_upcoming"}
 BUILD_STEP = ("build_site", "Static website (docs/)")
 
 
-def run(module: str, label: str, number: int, total: int, args: list[str]) -> float:
-    """Run one step with this project's Python, showing its output. Returns seconds taken."""
-    print(f"\n[{number}/{total}] {label}  (python -m {module})")
-    print("-" * 60, flush=True)
+def run(module: str, label: str, args: list[str]) -> tuple[bool, float]:
+    """Run one step with this project's Python, showing its output. Returns (succeeded, seconds)."""
+    print(f"\n  {label}  (python -m {module})")
+    print("  " + "-" * 58, flush=True)
     started = time.time()
     # sys.executable is the Python running this script, i.e. the one in .venv
     result = subprocess.run([sys.executable, "-m", module, *args])
     elapsed = time.time() - started
     if result.returncode != 0:
-        print("-" * 60)
-        print(f"\nStopped: {module} failed (exit code {result.returncode}) after {elapsed:.0f}s.")
-        print("Nothing after this step was run. Fix the error shown above, then run update.py again.")
-        print("Every step is safe to re-run, so starting over from the beginning is fine.")
-        sys.exit(1)
-    return elapsed
+        print(f"\n  Failed: {module} (exit code {result.returncode}) after {elapsed:.0f}s.")
+    return result.returncode == 0, elapsed
 
 
 def main() -> None:
     os.chdir(Path(__file__).resolve().parent)  # works no matter which folder it's run from
-    steps = STEPS + ([BUILD_STEP] if "--build" in sys.argv[1:] else [])
-
+    args = sys.argv[1:]
+    record = ["--record"] if "--record" in args else []
     started = time.time()
-    record = ["--record"] if "--record" in sys.argv[1:] else []
-    timings = [
-        (label, run(module, label, i, len(steps), record if module == "epl.predict_upcoming" else []))
-        for i, (module, label) in enumerate(steps, start=1)
-    ]
+    timings, failed = [], []
+
+    for sport, steps in SPORTS.items():
+        print(f"\n{'=' * 60}\n{sport}")
+        for module, label in steps:
+            ok, seconds = run(module, label, record if module in RECORDING_STEPS else [])
+            timings.append((f"{sport}: {label}", seconds))
+            if not ok:
+                failed.append(f"{sport}: {label} ({module})")
+                print(f"  Skipping the rest of the {sport} update; it depends on this step.")
+                break
+
+    if "--build" in args and not failed:
+        ok, seconds = run(*BUILD_STEP, [])
+        timings.append((BUILD_STEP[1], seconds))
+        if not ok:
+            failed.append(BUILD_STEP[1])
 
     print("\n" + "=" * 60)
-    print("Update complete.\n")
     for label, seconds in timings:
-        print(f"  {label:<36} {seconds:>5.0f}s")
-    print(f"  {'Total':<36} {time.time() - started:>5.0f}s")
-    if "--build" not in sys.argv[1:]:
-        print("\nPreview the site with:  uvicorn app:app --reload")
+        print(f"  {label:<52} {seconds:>5.0f}s")
+    print(f"  {'Total':<52} {time.time() - started:>5.0f}s")
+    if failed:
+        print("\nThese steps failed (see the errors above):")
+        for step in failed:
+            print(f"  {step}")
+        print("Every step is safe to re-run, so running update.py again is fine.")
+        sys.exit(1)
+    print("\nUpdate complete.")
+    if "--build" not in args:
+        print("Preview the site with:  uvicorn app:app --reload")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% from "nfl/macros.html" import team_link %}
+{% block title %}Team ratings | NFL probabilities{% endblock %}
+
+{% block content %}
+<div class="intro">
+  <h1>Team ratings</h1>
+  {% if rows %}<p>Points per game each team scores and stops compared with an average NFL team, as of {{ as_of }}. Based on {{ "{:,}".format(games_used) }} games from the last four years, with recent ones counting much more. An average team scores {{ base }} points; playing at home is worth {{ home_adv }} points of margin, and starting a quarterback who isn't the usual starter costs about {{ qb_change }} points.</p>{% endif %}
+</div>
+
+{% if rows %}
+<div class="table-wrap">
+  <table class="ratings">
+    <thead>
+      <tr><th scope="col" class="num">Rank</th><th scope="col">Team</th><th scope="col" class="num">Offense</th><th scope="col" class="num">Defense</th><th scope="col" class="num">Overall</th></tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td class="num rank">{{ loop.index }}</td>
+        <th scope="row"><a class="team-link" href="{{ nfl_team_url(r.team) }}">{{ r.name }}</a></th>
+        <td class="num {{ r.offense_class }}">{{ r.offense }}</td>
+        <td class="num {{ r.defense_class }}">{{ r.defense }}</td>
+        <td class="num {{ r.overall_class }}">{{ r.overall }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="note">Offense: extra points scored per game. Defense: points per game kept off the board (positive is good). Overall: the two added together, the expected margin against an average team on a neutral field.</p>
+{% else %}
+<section class="empty"><h2>No ratings yet</h2><p>Import NFL games first: <code>python -m nfl.import_nfl</code>.</p></section>
+{% endif %}
+{% endblock %}

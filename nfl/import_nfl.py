@@ -8,7 +8,8 @@ with scores, the spread, total and moneylines, and details such as rest days, st
 quarterbacks and weather. It includes the whole current season's schedule; games not yet
 played are stored with status 'scheduled'. Safe to re-run: existing games are updated.
 
-The spread and total (every season) are kept in nfl_game_info, for every game. Prices
+The latest spread, total and moneylines are kept in nfl_game_info for every game, so
+upcoming games show the current market. Prices
 (from 2006) go in the odds table, for finished games only. nflverse updates a game's lines
 until kickoff, so for a finished game they are the last lines recorded before it was played:
 treated here as closing lines. Its documentation doesn't name the sportsbook, so the
@@ -39,9 +40,10 @@ INFO_COLUMNS = {  # nfl_game_info column -> nflverse column
     "home_coach": "home_coach", "away_coach": "away_coach",
     "referee": "referee", "stadium": "stadium",
     "spread_line": "spread_line", "total_line": "total_line",
+    "home_moneyline": "home_moneyline", "away_moneyline": "away_moneyline",
 }
 INTEGER_INFO = {"week", "overtime", "home_rest", "away_rest", "div_game", "temp", "wind"}
-FLOAT_INFO = {"spread_line", "total_line"}
+FLOAT_INFO = {"spread_line", "total_line", "home_moneyline", "away_moneyline"}
 REQUIRED = ["game_id", "season", "game_type", "week", "gameday", "home_team", "away_team",
             "home_score", "away_score", "location", "spread_line", "total_line"]
 
@@ -146,8 +148,17 @@ def insert_lines(conn, game_id, row) -> int:
     return added
 
 
+def ensure_columns(conn) -> None:
+    """Databases created before a column was added to nfl_game_info don't have it yet; add it."""
+    existing = {row[1] for row in conn.execute("PRAGMA table_info(nfl_game_info)")}
+    for column in ("home_moneyline", "away_moneyline"):
+        if column not in existing:
+            conn.execute(f"ALTER TABLE nfl_game_info ADD COLUMN {column} REAL")
+
+
 def import_games(conn, df: pd.DataFrame) -> dict:
     conn.executescript(SCHEMA_PATH.read_text())
+    ensure_columns(conn)
     league_id = get_league_id(conn)
     cache: dict = {}
     counts = {"new": 0, "updated": 0, "final": 0, "scheduled": 0, "odds": 0}

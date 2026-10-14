@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% from "nfl/macros.html" import game_row, key %}
+{% block title %}Upcoming games | NFL probabilities{% endblock %}
+
+{% block content %}
+<div class="intro">
+  <h1>Upcoming games{% if week %}: {{ week }}{% endif %}</h1>
+  <p>For each game, the thick bar is the model's chance of each team winning. The thin bar underneath is the betting market's view, from the moneylines with the bookmaker's margin removed. Under the bars: the model's expected margin and total points, next to the market's spread and total.</p>
+  {{ key() }}
+</div>
+
+{% if days %}
+  {% for day in days %}
+  <section class="day">
+    <h2>{{ day.label }}</h2>
+    <ul class="matches">{% for g in day.games %}{{ game_row(g) }}{% endfor %}</ul>
+  </section>
+  {% endfor %}
+  <p class="note">Predictions use each team's expected starting quarterback where one is listed (usually for this week's games), and lower a team's chances when that isn't its usual starter. Further ahead, the usual starter is assumed. Predictions are refreshed on Tuesdays and Fridays, saved before kickoff and never changed afterwards: see the <a href="{{ base }}/nfl/track-record/">track record</a>.</p>
+{% else %}
+  <section class="empty">
+    <h2>No upcoming games predicted yet</h2>
+    <p>Predictions for the next eight days of games are made on Tuesdays and Fridays. Run <code>python -m nfl.predict_upcoming</code> to make them now.</p>
+    <p><a class="button" href="{{ base }}/nfl/results/">See recent results</a></p>
+  </section>
+{% endif %}
+{% endblock %}

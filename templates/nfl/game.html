@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% from "nfl/macros.html" import bar, team_link, badge %}
+{% block title %}{{ nfl_name(g.away) }} at {{ nfl_name(g.home) }} | NFL probabilities{% endblock %}
+
+{% block content %}
+<div class="match-header">
+  <p class="eyebrow">{{ season }} {{ g.week }} &middot; {{ date }}{% if g.kickoff %} &middot; {{ g.kickoff }}{% endif %}{% if stadium %} &middot; {{ stadium }}{% endif %}{% if g.neutral %} (neutral site){% endif %}</p>
+  {% set away_class = {'away': 'winner', 'home': 'loser'}.get(g.result, '') %}
+  {% set home_class = {'home': 'winner', 'away': 'loser'}.get(g.result, '') %}
+  <h1 class="match-title">
+    <span class="team-away {{ away_class }}">{{ team_link(g.away, full=True) }}</span>
+    {% if finished %}<span class="final-score">{{ away_score }}&ndash;{{ home_score }}</span>{% else %}<span class="versus">at</span>{% endif %}
+    <span class="team-home {{ home_class }}">{{ team_link(g.home, full=True) }}</span>
+  </h1>
+  {% if g.source %}<p class="match-source"><span class="source">{{ g.source }}</span></p>{% endif %}
+</div>
+
+{% if g.model %}
+<section class="detail-section">
+  <h2>Forecast</h2>
+  <div class="forecast">
+    <p class="bar-label">Model</p>
+    {{ bar(g.model, 'model', g.result if finished else None, g.away, g.home) }}
+    {% if g.market %}
+      <p class="bar-label">Betting market {{ 'at kickoff' if finished else 'now' }}</p>
+      {{ bar(g.market, 'model', g.result if finished else None, g.away, g.home) }}
+    {% endif %}
+    <p class="key">
+      <span class="key-item"><span class="swatch seg-away"></span>{{ nfl_name(g.away) }} win</span>
+      <span class="key-item"><span class="swatch seg-home"></span>{{ nfl_name(g.home) }} win</span>
+    </p>
+  </div>
+
+  <table class="goals-table nfl-lines">
+    <thead><tr><th scope="col"></th><th scope="col">Model</th><th scope="col">Market</th>{% if finished %}<th scope="col">Result</th>{% endif %}</tr></thead>
+    <tbody>
+      {% if expected %}
+      <tr><th scope="row">Expected score</th><td>{{ g.away }} {{ expected.away }}, {{ g.home }} {{ expected.home }}</td><td class="muted">&ndash;</td>{% if finished %}<td>{{ g.away }} {{ away_score }}, {{ g.home }} {{ home_score }}</td>{% endif %}</tr>
+      {% endif %}
+      <tr><th scope="row">Win chance</th><td>{{ g.away }} {{ g.model.away }}%, {{ g.home }} {{ g.model.home }}%</td><td>{% if g.market %}{{ g.away }} {{ g.market.away }}%, {{ g.home }} {{ g.market.home }}%{% else %}&ndash;{% endif %}</td>{% if finished %}<td>{{ {'home': g.home ~ ' won', 'away': g.away ~ ' won'}.get(g.result, 'Tie') }}</td>{% endif %}</tr>
+      <tr><th scope="row">Spread</th><td>{{ g.model_line or '&ndash;'|safe }}</td><td>{{ g.market_line or '&ndash;'|safe }}</td>{% if finished %}<td>{{ g.actual_line }}</td>{% endif %}</tr>
+      <tr><th scope="row">Total points</th><td>{{ g.model_total or '&ndash;'|safe }}</td><td>{{ g.market_total or '&ndash;'|safe }}</td>{% if finished %}<td>{{ g.actual_total }}</td>{% endif %}</tr>
+    </tbody>
+  </table>
+  <p class="note">The win chance comes from the expected margin: actual NFL margins typically land within about {{ margin_sd }} points of it either way. The market's spread and total are its {{ 'last lines before kickoff' if finished else 'current lines' }}.{% if finished and g.model_actual is defined %} The model gave the winner {{ g.model_actual }}%{% if g.market_actual is not none %}; the market gave it {{ g.market_actual }}%{% endif %}.{% endif %}</p>
+</section>
+{% else %}
+<section class="detail-section">
+  <p class="section-note">There's no model forecast for this game{% if not finished %} yet: predictions are made up to eight days ahead{% endif %}.</p>
+</section>
+{% endif %}
+
+{% if qb %}
+<section class="detail-section">
+  <h2>{{ 'Starting quarterbacks' if finished else 'Expected starting quarterbacks' }}</h2>
+  <ul class="form-list qb-list">
+    <li><strong>{{ g.away }}</strong> {{ qb.away or 'Not known' }}{% if qb.away_change %} <span class="source">not the usual starter</span>{% endif %}</li>
+    <li><strong>{{ g.home }}</strong> {{ qb.home or 'Not known' }}{% if qb.home_change %} <span class="source">not the usual starter</span>{% endif %}</li>
+  </ul>
+  {% if qb.away_change or qb.home_change %}<p class="note">The model lowers a team's expected points when its starter isn't the quarterback who started most of its previous eight games{% if not finished %}; this forecast already includes that{% endif %}.</p>{% endif %}
+</section>
+{% endif %}
+
+<section class="detail-section">
+  <h2>Form going into the game</h2>
+  <div class="form-columns">
+    {% for team, form in [(g.away, form_away), (g.home, form_home)] %}
+    <div>
+      <h3>{{ team_link(team, full=True) }}</h3>
+      {% if form %}
+      <ol class="form-list">
+        {% for f in form %}
+        <li>{{ badge(f.outcome) }} <a class="team-link" href="{{ f.url }}">{{ f.score }}</a> {{ f.venue }} {{ team_link(f.opponent) }}</li>
+        {% endfor %}
+      </ol>
+      <p class="note">Oldest first.</p>
+      {% else %}
+      <p class="note">No earlier games in the data.</p>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="detail-section">
+  <h2>Head to head</h2>
+  {% if h2h.meetings %}
+  <p class="section-note">
+    {{ h2h.meetings|length }} meeting{{ '' if h2h.meetings|length == 1 else 's' }} since {{ h2h.first }}:
+    {{ nfl_name(h2h.a) }} {{ h2h.wins_a }}, {{ nfl_name(h2h.b) }} {{ h2h.wins_b }}{% if h2h.ties %}, {{ h2h.ties }} tie{{ '' if h2h.ties == 1 else 's' }}{% endif %}.
+  </p>
+  <ul class="h2h-list">
+    {% for m in h2h.meetings %}
+    <li>
+      <span class="h2h-date">{{ m.date }} &middot; {{ m.week }}</span>
+      <a class="team-link" href="{{ m.url }}">
+        <span class="{{ 'winner' if m.winner == m.away }}">{{ m.away }}</span>
+        <span class="h2h-score">{{ m.score }}</span>
+        <span class="{{ 'winner' if m.winner == m.home }}">at {{ m.home }}</span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="note">These teams haven't met before this game in the data (since 1999).</p>
+  {% endif %}
+</section>
+{% endblock %}

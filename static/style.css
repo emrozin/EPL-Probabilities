@@ -533,3 +533,33 @@ code {
 /* ---------- Track record ---------- */
 .track-table { max-width: 44rem; }
 .track-table thead th { font-size: 0.85rem; color: var(--muted); font-weight: 600; }
+
+/* ---------- Sport menu ---------- */
+.site-brand { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.4rem 0.9rem; }
+.sport-picker select {
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: 0.2rem 0.4rem;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+}
+.sport-picker select:focus-visible { outline: 3px solid var(--away); outline-offset: 1px; }
+
+/* ---------- NFL ---------- */
+.badge-T { background: var(--draw); color: var(--ink); }
+.nfl-teams .at { color: var(--muted); font-weight: 500; font-size: 0.9em; margin-right: 0.15rem; }
+.nfl-teams:not(.finished) .team-away { color: var(--ink); font-weight: 600; }
+.nfl-teams .team-home::before { order: 0; }
+.division-grid { display: grid; grid-template-columns: 1fr; gap: 0.5rem; max-width: 46rem; }
+.division { margin-bottom: 2rem; }
+.division h2 { font-size: 1.35rem; margin-bottom: 0.4rem; }
+.nfl-standings tbody th { font-size: 1.05rem; }
+.nfl-lines { margin-top: 1.25rem; }
+.nfl-lines th, .nfl-lines td { padding-right: 1.5rem; }
+.qb-list li { gap: 0.75rem; }
+
+@media (max-width: 40rem) {
+  .nfl-teams .team-home::after { content: none; }
+}

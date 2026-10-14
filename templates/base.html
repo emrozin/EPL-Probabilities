@@ -1,18 +1,36 @@
 <!doctype html>
+{% set sport = sport | default('epl') %}
+{% set sport_name = 'NFL' if sport == 'nfl' else 'Premier League' %}
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}Premier League match probabilities{% endblock %}</title>
+  <title>{% block title %}{{ sport_name }} {{ 'game' if sport == 'nfl' else 'match' }} probabilities{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
   <link rel="stylesheet" href="{{ base }}/static/style.css">
 </head>
-<body>
+<body class="sport-{{ sport }}">
   <header class="site-header">
-    <a class="site-title" href="{{ base }}/">Premier League probabilities</a>
+    <div class="site-brand">
+      <a class="site-title" href="{{ base }}{{ '/nfl/' if sport == 'nfl' else '/' }}">{{ sport_name }} probabilities</a>
+      <label class="sport-picker">
+        <span class="visually-hidden">Sport</span>
+        <select onchange="window.location.href = this.value">
+          {% for label, code, url in sports %}<option value="{{ url }}" {% if code == sport %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </label>
+    </div>
     <nav aria-label="Main">
+      {% if sport == 'nfl' %}
+      <a href="{{ base }}/nfl/" {% if active == 'upcoming' %}aria-current="page"{% endif %}>Upcoming</a>
+      <a href="{{ base }}/nfl/results/" {% if active == 'results' %}aria-current="page"{% endif %}>Results</a>
+      <a href="{{ base }}/nfl/standings/" {% if active == 'standings' %}aria-current="page"{% endif %}>Standings</a>
+      <a href="{{ base }}/nfl/track-record/" {% if active == 'track' %}aria-current="page"{% endif %}>Track record</a>
+      <a href="{{ base }}/nfl/backtest/" {% if active == 'backtest' %}aria-current="page"{% endif %}>Backtest</a>
+      <a href="{{ base }}/nfl/ratings/" {% if active == 'ratings' %}aria-current="page"{% endif %}>Team ratings</a>
+      {% else %}
       <a href="{{ base }}/" {% if active == 'upcoming' %}aria-current="page"{% endif %}>Upcoming</a>
       <a href="{{ base }}/results/" {% if active == 'results' %}aria-current="page"{% endif %}>Results</a>
       <a href="{{ base }}/table/" {% if active == 'table' %}aria-current="page"{% endif %}>Table</a>
@@ -20,6 +38,7 @@
       <a href="{{ base }}/track-record/" {% if active == 'track' %}aria-current="page"{% endif %}>Track record</a>
       <a href="{{ base }}/backtest/" {% if active == 'backtest' %}aria-current="page"{% endif %}>Backtest</a>
       <a href="{{ base }}/ratings/" {% if active == 'ratings' %}aria-current="page"{% endif %}>Team ratings</a>
+      {% endif %}
     </nav>
   </header>
 
@@ -28,8 +47,12 @@
   </main>
 
   <footer class="site-footer">
+    {% if sport == 'nfl' %}
+    <p>Probabilities come from a points model: offense and defense ratings fitted to four years of games, with recent games weighted more heavily and an adjustment for teams not starting their usual quarterback. Data from nflverse. This is a statistics project, not betting advice.</p>
+    {% else %}
     <p>Probabilities come from a Poisson model fitted to three years of results and expected goals, with recent matches weighted more heavily. Data from football-data.co.uk and Understat. This is a statistics project, not betting advice.</p>
-    <p><a href="https://github.com/emrozin/epl-probabilities">Code and methodology on GitHub</a></p>
+    {% endif %}
+    <p><a href="https://github.com/emrozin/Sports-Probabilities">Code and methodology on GitHub</a></p>
   </footer>
 </body>
 </html>

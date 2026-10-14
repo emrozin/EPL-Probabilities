@@ -34,7 +34,8 @@ def load_nfl_games(conn) -> pd.DataFrame:
     """Every NFL game (played and scheduled) in date order, with what Elo and the backtest need."""
     return pd.read_sql("""
         SELECT g.id, g.season, g.date, g.status, h.name AS home, a.name AS away,
-               g.home_score, g.away_score, i.neutral_site, i.game_type, i.week, i.spread_line
+               g.home_score, g.away_score, i.neutral_site, i.game_type, i.week, i.spread_line,
+               i.home_qb, i.away_qb
         FROM games g
         JOIN leagues l ON l.id = g.league_id AND l.code = 'NFL'
         JOIN teams h ON h.id = g.home_team_id

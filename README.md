@@ -1,12 +1,14 @@
-# Premier League Match Probabilities
+# Sports Probabilities: Premier League and NFL
 
-A statistical model that estimates win, draw and loss probabilities for English Premier League matches, evaluated honestly against the sharpest benchmark available: closing betting-market odds. Predictions for upcoming matches are published to this repository before kickoff, so the model's live track record can be checked by anyone.
+Statistical models that estimate win probabilities for English Premier League matches and NFL games, evaluated honestly against the sharpest benchmark available: betting-market odds. Predictions for upcoming games are published to this repository before kickoff, so each model's live track record can be checked by anyone. Both sports share one database, one automated update and one website, with a sport menu.
+
+The Premier League model came first and is described in most detail below; the NFL section follows.
 
 The project covers the full pipeline: collecting and validating 30+ seasons of data from four sources, building and tuning a Poisson goals model with expected goals (xG), testing it with walk-forward backtesting on seasons it never saw during development, and serving it through a web app with an automated, tested weekly update.
 
 **Tech:** Python, SQL (SQLite), pandas, NumPy, SciPy, FastAPI, Jinja, pytest, GitHub Actions
 
-## Results
+## Premier League results
 
 All numbers below are from **held-out seasons (2021/22 to 2025/26, 1,921 matches)** that played no part in choosing the model's settings. Lower log loss is better; guessing one-third for every outcome scores 1.0986.
 
@@ -91,9 +93,27 @@ Pulling ratings toward each squad's value (FPL prices or Transfermarkt valuation
 
 The fading version closes 11% of the overall gap to the market, and about two-thirds of the gap in rounds 1–10. One caveat: on the tuning seasons the full-strength version scored slightly better, so the held-out seasons decided between two finalists. The fading version is preferred because, by design, it can't cause the late-season loss. It isn't used for live predictions yet.
 
+## NFL
+
+Data: every game since 1999 from [nflverse](https://github.com/nflverse/nfldata) (scores, spreads, totals, moneylines from 2006, starting quarterbacks, rest days, weather), in the same database.
+
+**Model.** Each team has an offense rating (points scored above average) and a defense rating (points prevented), plus a home advantage fitted from recent games, so it follows the league's shrinking home edge (about 2.7 points in the 2000s, under 2 since 2020). Ratings are fitted by weighted least squares on four years of games, with a 150-day half-life and shrinkage. The expected margin becomes a win probability through a normal distribution (actual margins land about 13 points either side). A **quarterback adjustment** lowers a team's expected points when its starter isn't its usual one; live predictions use nflverse's expected starters for the current week.
+
+**Results** on held-out seasons (2018-2025, 2,219 games, ties left out; tuned on 2010-2017), log loss:
+
+| Model | Log loss | Share of the market's edge over a coin flip |
+|---|---|---|
+| Coin flip | 0.6931 | 0% |
+| Elo ratings (baseline) | 0.6382 | 65% |
+| Points model (offense/defense ratings) | 0.6374 | 66% |
+| **Points model + quarterback adjustment** | **0.6326** | **72%** |
+| Market moneylines | 0.6089 | 100% |
+
+Offense and defense ratings alone did no better than Elo on the held-out seasons, despite looking better on the tuning seasons. The quarterback adjustment made the real difference: when a team started a backup or new quarterback, the model had been overrating it by about two points, while the market had already priced it in.
+
 ## Website
 
-A FastAPI app with Jinja templates, currently run locally:
+A FastAPI app with Jinja templates, currently run locally. A menu in the header switches between the sports. Premier League pages:
 
 - **Upcoming:** next fixtures with model probabilities next to the bookmakers' odds
 - **Match pages:** exact-score grid, over/under (with the market's view), both teams to score
@@ -102,20 +122,23 @@ A FastAPI app with Jinja templates, currently run locally:
 - **Track record:** live predictions only, scored against results and the closing market
 - **Backtest** and **Ratings:** held-out performance and current team ratings
 
+NFL pages (under `/nfl/`): upcoming games with win chances, expected margin and total next to the market's moneyline, spread and total; results by week; standings by division; team pages with schedule and quarterbacks; game pages with expected starters, form and every earlier meeting; track record; backtest with calibration; team ratings.
+
 `build_site.py` can also render the whole site as static HTML for GitHub Pages.
 
 ## Automation and testing
 
 - **One command updates everything:** `update.py` runs the results, xG, backtest, fixtures, prediction and availability steps in order, stopping at the first failure.
-- **GitHub Actions** runs the test suite on every push, and twice a week runs the update and commits new predictions to `records/` before kickoff.
-- **73 pytest tests** cover the importers (including format quirks and source changes), the model (valid probabilities, recovering known team strengths from simulated leagues, no look-ahead in the backtest), the prediction record (nothing changes after kickoff), the simulator and the website. Tests use simulated leagues and temporary databases, never real data or the network.
+- **GitHub Actions** runs the test suite on every push, and twice a week (Tuesdays and Fridays) runs the update for both sports and commits new predictions to `records/` before kickoff. If one sport's data source fails, the other sport still updates.
+- **117 pytest tests** cover the importers (including format quirks and source changes), the model (valid probabilities, recovering known team strengths from simulated leagues, no look-ahead in the backtest), the prediction record (nothing changes after kickoff), the simulator, the NFL importer and models, and both sports' websites. Tests use simulated leagues and temporary databases, never real data or the network.
 
 ## Project structure
 
 ```
 update.py               Runs the weekly update, step by step
 db.py                   Shared database helpers; schema.sql defines one database for every sport
-app.py, templates/      The website (build_site.py renders it as static HTML)
+app.py, web.py          The website: Premier League pages and shared helpers (NFL pages in nfl/site.py)
+templates/, static/     Page templates and styles; build_site.py renders the site as static HTML
 records/                Official live predictions, saved before kickoff
 tests/                  pytest suite
 
@@ -137,8 +160,14 @@ epl/                    Premier League
   checks.sql              SQL sanity checks and data exploration queries
   poisson_model.ipynb     Model development notebook
 
-nfl/                    NFL (in progress)
-  import_nfl.py           nflverse games, results, spreads, totals and moneylines since 1999
+nfl/                    NFL
+  import_nfl.py           nflverse games, results, spreads, totals, moneylines and quarterbacks since 1999
+  elo.py, tune_elo.py     Elo baseline and its tuning
+  model.py, tune_model.py Points model with quarterback adjustment, and its tuning and comparison
+  run_backtest.py         Saves walk-forward backtest predictions
+  predict_upcoming.py     Predicts the next 8 days' games and records them before kickoff
+  records.py              The official NFL prediction record in records/
+  site.py                 The NFL web pages
   checks.sql              SQL data checks and exploration queries
 ```
 
@@ -153,19 +182,20 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-python update.py              # builds data/sports.db (the first run downloads every season)
-python -m nfl.import_nfl      # adds the NFL
+python update.py              # builds data/sports.db for both sports (the first run downloads every season)
 uvicorn app:app --reload      # then open http://127.0.0.1:8000
 pytest                        # run the tests
 ```
 
 ## Roadmap
 
-- The NFL on the same site, chosen from a sport menu (data imported; model in progress), then college football and basketball
+- NFL player projections: passing, rushing and receiving yards, touchdowns and receptions
+- Rate individual quarterbacks (how much worse is this particular backup), and rest days
+- College football and basketball
 - Player availability: adjust for injured and suspended players, the largest remaining source of the gap to the market
 - An optional "model + market" forecast that blends the model with pre-match odds
 - Use the fading squad-value adjustment for live predictions
 
 ## Acknowledgements
 
-Data comes from football-data.co.uk, Understat and Fantasy Premier League; please respect their terms of use. Historical FPL prices come from the [FPL Historical Dataset](https://github.com/vaastav/Fantasy-Premier-League) by Vaastav Anand (MIT License), and player valuations from [transfermarkt-datasets](https://github.com/dcaribou/transfermarkt-datasets) (CC0). Understat has no official API, so its importer may need updating if the site changes. This is a statistics project, not betting advice.
+Data comes from football-data.co.uk, Understat, Fantasy Premier League and nflverse; please respect their terms of use. Historical FPL prices come from the [FPL Historical Dataset](https://github.com/vaastav/Fantasy-Premier-League) by Vaastav Anand (MIT License), and player valuations from [transfermarkt-datasets](https://github.com/dcaribou/transfermarkt-datasets) (CC0). Understat has no official API, so its importer may need updating if the site changes. This is a statistics project, not betting advice.

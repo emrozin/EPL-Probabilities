@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% from "nfl/macros.html" import badge, season_picker %}
+{% block title %}Standings | NFL probabilities{% endblock %}
+
+{% block content %}
+<div class="intro">
+  <h1>{% if is_current %}NFL standings{% else %}{{ season }} standings{% endif %}</h1>
+  <p>Regular-season records{% if by_division %} by division{% endif %}{% if not is_current %} for the {{ season }} season{% endif %}. Point differential often says more about a team than its record: close games are close to coin flips.</p>
+  {% if seasons|length > 1 %}{{ season_picker(seasons) }}{% endif %}
+</div>
+
+{% if groups %}
+<div class="division-grid">
+  {% for group in groups %}
+  <section class="division">
+    <h2>{{ group.label }}</h2>
+    <div class="table-wrap">
+      <table class="league nfl-standings">
+        <thead>
+          <tr>
+            <th scope="col">Team</th>
+            <th scope="col" class="num"><abbr title="Won">W</abbr></th>
+            <th scope="col" class="num"><abbr title="Lost">L</abbr></th>
+            {% if has_ties %}<th scope="col" class="num"><abbr title="Tied">T</abbr></th>{% endif %}
+            <th scope="col" class="num"><abbr title="Winning percentage (ties count as half a win)">Pct</abbr></th>
+            <th scope="col" class="num wide-only"><abbr title="Points for">PF</abbr></th>
+            <th scope="col" class="num wide-only"><abbr title="Points against">PA</abbr></th>
+            <th scope="col" class="num"><abbr title="Point differential">Diff</abbr></th>
+            <th scope="col" class="form-col wide-only">Last 5</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in group.rows %}
+          <tr>
+            <th scope="row"><a class="team-link" href="{{ r.url }}">{{ r.name }}</a></th>
+            <td class="num">{{ r.won }}</td>
+            <td class="num">{{ r.lost }}</td>
+            {% if has_ties %}<td class="num">{{ r.tied }}</td>{% endif %}
+            <td class="num pts">{{ r.pct }}</td>
+            <td class="num wide-only">{{ r.pf }}</td>
+            <td class="num wide-only">{{ r.pa }}</td>
+            <td class="num">{{ r.diff }}</td>
+            <td class="form-col wide-only"><span class="form">{% for f in r.form %}{{ badge(f) }}{% endfor %}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endfor %}
+</div>
+<p class="note">Sorted by winning percentage, then point differential. The NFL's official tiebreakers (head-to-head, division record and so on) can order teams with the same record differently. {% if not by_division %}The current eight divisions began in 2002, so earlier seasons are shown as one table. {% endif %}Last 5 reads oldest to most recent.</p>
+{% else %}
+  <section class="empty"><h2>No games played yet</h2></section>
+{% endif %}
+{% endblock %}

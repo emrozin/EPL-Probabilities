@@ -146,5 +146,7 @@ CREATE TABLE IF NOT EXISTS nfl_game_info (
     referee         TEXT,
     stadium         TEXT,
     spread_line     REAL,                  -- the market's expected HOME margin: +3.5 = home favored by 3.5
-    total_line      REAL                   -- the market's expected total points
+    total_line      REAL,                  -- the market's expected total points
+    home_moneyline  REAL,                  -- latest American odds (upcoming games: the current market)
+    away_moneyline  REAL
 );

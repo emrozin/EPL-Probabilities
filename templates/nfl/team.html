@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% from "nfl/macros.html" import game_row, season_picker, scorecard %}
+{% block title %}{{ name }} | NFL probabilities{% endblock %}
+
+{% block content %}
+<div class="intro">
+  <p class="eyebrow"><a href="{{ standings_url }}">{{ season }} standings</a>{% if division %} &middot; {{ division }}{% endif %}</p>
+  <h1>{{ name }}</h1>
+  {% if record %}
+  <p>{{ record.text }} in the {{ season }} regular season{% if is_current %} so far{% endif %}{% if record.div_rank %}, {{ record.div_rank }} in the {{ record.division }}{% endif %}. Points scored {{ record.pf }}, allowed {{ record.pa }} ({{ record.diff }}).</p>
+  {% endif %}
+  {% if ratings %}
+  <p>Current model rating, in points per game compared with an average team: offense <span class="{{ ratings.offense_class }}">{{ ratings.offense }}</span>, defense <span class="{{ ratings.defense_class }}">{{ ratings.defense }}</span>, overall <span class="{{ ratings.overall_class }}">{{ ratings.overall }}</span>.</p>
+  {% endif %}
+  {% if quarterbacks %}
+  <p>Starting quarterbacks: {% for q in quarterbacks %}{{ q.name }} ({{ q.starts }} start{{ '' if q.starts == 1 else 's' }}){% if not loop.last %}, {% endif %}{% endfor %}.</p>
+  {% endif %}
+  {% if seasons|length > 1 %}{{ season_picker(seasons) }}{% endif %}
+</div>
+
+{% if summary %}{{ scorecard(summary) }}{% endif %}
+
+{% if coming %}
+<section class="day">
+  <h2>Coming up</h2>
+  <ul class="matches">{% for g in coming %}{{ game_row(g, current_team=team) }}{% endfor %}</ul>
+</section>
+{% endif %}
+
+{% if schedule %}
+<section class="day">
+  <h2>Rest of the schedule</h2>
+  <ul class="h2h-list schedule-list">
+    {% for g in schedule %}
+    <li><span class="h2h-date">{{ g.date }}</span><span>{{ g.week }}</span><a class="team-link" href="{{ g.url }}">{{ g.venue }} <strong>{{ nfl_name(g.opponent) }}</strong></a>{% if g.kickoff %}<span class="muted">{{ g.kickoff }}</span>{% endif %}</li>
+    {% endfor %}
+  </ul>
+  <p class="note">Forecasts appear up to eight days before each game.</p>
+</section>
+{% endif %}
+
+{% if played %}
+<section class="day">
+  <h2>Games, most recent first</h2>
+  <ul class="matches">{% for g in played %}{{ game_row(g, current_team=team) }}{% endfor %}</ul>
+</section>
+{% endif %}
+{% endblock %}

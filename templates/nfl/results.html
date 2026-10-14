@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% from "nfl/macros.html" import game_row, key, scorecard %}
+{% block title %}Results | NFL probabilities{% endblock %}
+
+{% block content %}
+<div class="intro">
+  <h1>Results vs predictions</h1>
+  <p>How the model's forecasts compared with what happened. The winner's side of each bar is in full colour; the thin bar is the betting market's closing view. Click a team for its season, or a score for the full game details.</p>
+  {{ key() }}
+</div>
+
+{% if days %}
+  <nav class="week-nav" aria-label="Weeks">
+    {% if previous_url %}<a href="{{ previous_url }}">&larr; Previous week</a>{% else %}<span></span>{% endif %}
+    <p class="week-label">{{ week_label }}</p>
+    {% if next_url %}<a href="{{ next_url }}">Next week &rarr;</a>{% else %}<span></span>{% endif %}
+  </nav>
+  {% if summary %}{{ scorecard(summary) }}{% endif %}
+  {% for day in days %}
+  <section class="day">
+    <h2>{{ day.label }}</h2>
+    <ul class="matches">{% for g in day.games %}{{ game_row(g) }}{% endfor %}</ul>
+  </section>
+  {% endfor %}
+  <p class="note">Before live predictions began, results use the backtest: each forecast was made using only games played before that week, so none of them could see the result.</p>
+{% else %}
+  <section class="empty">
+    <h2>No results to show yet</h2>
+    <p>Run <code>python -m nfl.run_backtest</code> to generate predictions for past games.</p>
+  </section>
+{% endif %}
+{% endblock %}

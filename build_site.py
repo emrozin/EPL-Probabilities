@@ -4,7 +4,7 @@ Usage:
     python build_site.py
 
 Then commit and push. GitHub Pages serves the docs/ folder at
-https://emrozin.github.io/epl-probabilities/
+https://emrozin.github.io/Sports-Probabilities/
 
 Pages are found by following links, starting from the home page, so a new page is
 included automatically as long as another page links to it.
@@ -16,7 +16,7 @@ import shutil
 import time
 from pathlib import Path
 
-BASE = "/epl-probabilities"   # the repository name: GitHub Pages serves the site under it
+BASE = "/Sports-Probabilities"   # the repository name: GitHub Pages serves the site under it
 os.environ["SITE_BASE"] = BASE
 
 from fastapi.testclient import TestClient  # noqa: E402  (must import after SITE_BASE is set)
