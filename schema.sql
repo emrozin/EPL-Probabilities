@@ -150,3 +150,45 @@ CREATE TABLE IF NOT EXISTS nfl_game_info (
     home_moneyline  REAL,                  -- latest American odds (upcoming games: the current market)
     away_moneyline  REAL
 );
+
+-- NFL weekly team and player stats from nflverse (nfl/import_nfl_stats.py), one row per team or
+-- player per game. Players appear only in games where they recorded a stat.
+CREATE TABLE IF NOT EXISTS nfl_team_stats (
+    game_id         INTEGER NOT NULL REFERENCES games(id),
+    team            TEXT NOT NULL,
+    pass_attempts   INTEGER,
+    sacks           INTEGER,
+    carries         INTEGER,
+    passing_yards   INTEGER,
+    rushing_yards   INTEGER,
+    passing_epa     REAL,                  -- expected points added on passing plays
+    rushing_epa     REAL,
+    PRIMARY KEY (game_id, team)
+);
+
+CREATE TABLE IF NOT EXISTS nfl_player_stats (
+    game_id          INTEGER NOT NULL REFERENCES games(id),
+    player_id        TEXT NOT NULL,        -- nflverse's (GSIS) player id
+    name             TEXT NOT NULL,
+    position         TEXT,
+    team             TEXT NOT NULL,
+    completions      INTEGER, pass_attempts INTEGER, passing_yards INTEGER,
+    passing_tds      INTEGER, interceptions INTEGER,
+    carries          INTEGER, rushing_yards INTEGER, rushing_tds INTEGER,
+    targets          INTEGER, receptions INTEGER, receiving_yards INTEGER, receiving_tds INTEGER,
+    PRIMARY KEY (game_id, player_id)
+);
+
+-- Live NFL player projections (nfl/predict_players.py), saved before kickoff like predictions.
+CREATE TABLE IF NOT EXISTS nfl_player_projections (
+    game_id      INTEGER NOT NULL REFERENCES games(id),
+    player_id    TEXT NOT NULL,
+    name         TEXT NOT NULL,
+    position     TEXT,
+    team         TEXT NOT NULL,
+    pass_att REAL, pass_yds REAL, pass_tds REAL, ints REAL,
+    targets REAL, receptions REAL, rec_yds REAL, rec_tds REAL,
+    carries REAL, rush_yds REAL, rush_tds REAL, anytime_td REAL,
+    created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (game_id, player_id)
+);

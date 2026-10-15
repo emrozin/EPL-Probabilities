@@ -35,6 +35,16 @@ DEVELOPMENT = [
     ("Betting market (moneylines)", 0.6089),
 ]
 
+# Player projections vs simple benchmarks, held-out seasons 2018-2025 (nfl/players.py), October 2026:
+# average miss per player-game.
+PLAYER_ACCURACY = [
+    ("Passing yards", "61.4", "71.6", "70.0"),
+    ("Passing touchdowns", "0.92", "1.00", "0.98"),
+    ("Rushing yards", "8.2", "9.0", "8.7"),
+    ("Receptions", "1.28", "1.37", "1.34"),
+    ("Receiving yards", "17.0", "18.5", "17.9"),
+]
+
 # Current names and divisions. Relocated teams appear under their current name throughout
 # (Oakland Raiders -> Las Vegas, San Diego Chargers -> Los Angeles, St. Louis Rams -> Los Angeles).
 TEAMS = {
@@ -528,6 +538,48 @@ def head_to_head(games: pd.DataFrame, a: str, b: str, before: str) -> dict:
             "a": a, "b": b, "first": int(met["season"].min()) if len(met) else None}
 
 
+def player_projections(game_id: int, finished: bool) -> list[dict] | None:
+    """Each team's projected players for a game (quarterback first, then by yards), with the actual
+    numbers next to them once it's been played. None if the game has no projections."""
+    with connect() as conn:
+        if conn.execute("SELECT name FROM sqlite_master WHERE name = 'nfl_player_projections'").fetchone() is None:
+            return None
+        proj = pd.read_sql("SELECT * FROM nfl_player_projections WHERE game_id = ?", conn, params=(game_id,))
+        actual = pd.read_sql("SELECT * FROM nfl_player_stats WHERE game_id = ?", conn, params=(game_id,)) \
+            if finished else pd.DataFrame()
+    if proj.empty:
+        return None
+    if not actual.empty:
+        actual_columns = ["passing_yards", "passing_tds", "interceptions", "rushing_yards", "rushing_tds",
+                          "receptions", "receiving_yards", "receiving_tds"]
+        proj = proj.merge(actual[["player_id", *actual_columns]].rename(columns={c: f"act_{c}" for c in actual_columns}),
+                          on="player_id", how="left")
+    fmt = lambda v, d=0: "" if v is None or pd.isna(v) else f"{v:.{d}f}"
+    teams = []
+    for team, rows in proj.groupby("team"):
+        rows = rows.assign(order=(rows["position"] != "QB").astype(int),
+                           yards=rows["pass_yds"] + rows["rush_yds"] + rows["rec_yds"])
+        rows = rows.sort_values(["order", "yards"], ascending=[True, False])
+        players = []
+        for r in rows.itertuples():
+            if r.position != "QB" and r.rush_yds + r.rec_yds < 5:
+                continue   # too small a role to be worth listing
+            row = {"name": r.name, "position": r.position, "qb": r.position == "QB",
+                   "pass_yds": fmt(r.pass_yds), "pass_tds": fmt(r.pass_tds, 1), "ints": fmt(r.ints, 1),
+                   "rush_yds": fmt(r.rush_yds), "receptions": fmt(r.receptions, 1), "rec_yds": fmt(r.rec_yds),
+                   "anytime_td": f"{r.anytime_td * 100:.0f}%", "actual": None}
+            if "act_receiving_yards" in rows:
+                played = not pd.isna(r.act_rushing_yards)
+                tds = (r.act_rushing_tds or 0) + (r.act_receiving_tds or 0) if played else None
+                row["actual"] = {"pass_yds": fmt(r.act_passing_yards), "pass_tds": fmt(r.act_passing_tds),
+                                 "ints": fmt(r.act_interceptions), "rush_yds": fmt(r.act_rushing_yards),
+                                 "receptions": fmt(r.act_receptions), "rec_yds": fmt(r.act_receiving_yards),
+                                 "scored": None if tds is None else bool(tds > 0), "played": played}
+            players.append(row)
+        teams.append({"team": team, "players": players})
+    return teams
+
+
 @router.get("/game/{key}/", response_class=HTMLResponse)
 def game_page(request: Request, key: str):
     d = data()
@@ -557,6 +609,7 @@ def game_page(request: Request, key: str):
         "form_home": form(games, g.home, g.date), "form_away": form(games, g.away, g.date),
         "h2h": head_to_head(games, g.away, g.home, g.date),
         "margin_sd": f"{MARGIN_SD:g}",
+        "players": player_projections(int(g.id), finished),
     })
 
 
@@ -649,6 +702,7 @@ def backtest_page(request: Request):
         "margins": {"model": f"{model_miss:.1f}", "spread": f"{spread_miss:.1f}"},
         "calibration": calibration,
         "development": [{"label": label, "value": f"{value:.4f}"} for label, value in DEVELOPMENT],
+        "player_accuracy": PLAYER_ACCURACY,
         "start": START_SEASON, "tuned_through": HELD_OUT_FROM - 1, "half_life": HALF_LIFE_DAYS,
         "training_years": TRAINING_YEARS,
     })

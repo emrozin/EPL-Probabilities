@@ -15,8 +15,10 @@ Premier League (epl/):
 
 NFL (nfl/):
     1. import_nfl          results, schedule and betting lines from nflverse
-    2. run_backtest        backtest predictions, now including the latest games
-    3. predict_upcoming    predictions for the next 8 days' games, saved before kickoff
+    2. import_nfl_stats    team and player stats from nflverse
+    3. run_backtest        backtest predictions, now including the latest games
+    4. predict_upcoming    predictions for the next 8 days' games, saved before kickoff
+    5. predict_players     player projections for those games, saved before kickoff
 
 Each step is a module run with "python -m", e.g. python -m epl.import_epl. Within a sport, a
 failed step stops that sport's remaining steps (they depend on it), but the other sport still
@@ -44,11 +46,13 @@ SPORTS = {
     ],
     "NFL": [
         ("nfl.import_nfl", "Games, results and lines"),
+        ("nfl.import_nfl_stats", "Team and player stats"),
         ("nfl.run_backtest", "Backtest predictions"),
         ("nfl.predict_upcoming", "Predictions for upcoming games"),
+        ("nfl.predict_players", "Player projections for upcoming games"),
     ],
 }
-RECORDING_STEPS = {"epl.predict_upcoming", "nfl.predict_upcoming"}
+RECORDING_STEPS = {"epl.predict_upcoming", "nfl.predict_upcoming", "nfl.predict_players"}
 BUILD_STEP = ("build_site", "Static website (docs/)")
 
 

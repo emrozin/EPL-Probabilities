@@ -5,12 +5,13 @@ Usage:
 
 A self-contained version of the points model (nfl/model.py) where each idea can be switched on
 separately: the older usual-starter flag, quarterback ratings, rest days (byes and short weeks),
-travel across time zones, domes, and weather (wind and cold, outdoor games only). Each is scored
+travel across time zones, domes, weather (wind and cold, outdoor games only), and learning from
+expected points added (EPA, the NFL's version of expected goals) as well as the score. Each is scored
 by walk-forward log loss on the tuning seasons (2010-2017); the winner is then checked once on
 the held-out seasons (2018-2025).
 
 Result (October 2026): only quarterback ratings helped, so they're the only addition in
-nfl/model.py. Weather also can't be used for live predictions: nflverse records it only after
+nfl/model.py. EPA made win predictions worse at every weight (it slightly improved total points). Weather also can't be used for live predictions: nflverse records it only after
 a game is played.
 """
 import sqlite3
@@ -53,6 +54,13 @@ def load(conn):
     outdoors = g["roof"].isin(["outdoors","open"])
     g["wind10"] = np.where(outdoors, (g["wind"].fillna(0) - 10).clip(lower=0), 0) / 10
     g["cold"] = np.where(outdoors & g["temp"].notna(), (40 - g["temp"].fillna(60)).clip(lower=0), 0) / 10
+    try:   # EPA from nfl/import_nfl_stats.py, if it has been run
+        epa = pd.read_sql("SELECT game_id, team, COALESCE(passing_epa, 0) + COALESCE(rushing_epa, 0) AS epa "
+                          "FROM nfl_team_stats", conn).set_index(["game_id", "team"])["epa"]
+        g["home_epa"] = [epa.get((i, t), np.nan) for i, t in zip(g["id"], g["home"])]
+        g["away_epa"] = [epa.get((i, t), np.nan) for i, t in zip(g["id"], g["away"])]
+    except Exception:
+        g["home_epa"] = g["away_epa"] = np.nan
     return g
 
 @dataclass
@@ -62,6 +70,7 @@ class Cfg:
     qb_ratings: bool = False; qb_shrink: float = 10.0; inexp_k: float = 16
     prev_weight: float = 1.0          # extra weight multiplier for earlier seasons' games
     rest: bool = False; travel: bool = False; dome: bool = False; weather: bool = False
+    epa_weight: float = 0.0; epa_a: float = 22.14; epa_b: float = 0.625   # points = a + b * EPA (1999-2009 fit)
 
 def side_features(df, side, opp, cfg):
     """Feature columns affecting `side` team's points."""
@@ -105,6 +114,10 @@ def fit(train, as_of, cfg, season):
             ok = ~pd.isna(col)
             x[base_rows[ok], off + col[ok].astype(int)] = 1
     y = np.concatenate([train["home_score"].to_numpy(float), train["away_score"].to_numpy(float)])
+    if cfg.epa_weight:   # learn from a blend of the score and the points the plays' EPA was worth
+        epa = np.concatenate([train["home_epa"].to_numpy(float), train["away_epa"].to_numpy(float)])
+        epa_points = np.where(np.isnan(epa), y, cfg.epa_a + cfg.epa_b * np.nan_to_num(epa))
+        y = (1 - cfg.epa_weight) * y + cfg.epa_weight * epa_points
     pen = np.zeros(k); pen[:2*n] = cfg.shrink; pen[2*n+2:2*n+2+len(names)] = 1e-6
     if qbs: pen[2*n+2+len(names):] = cfg.qb_shrink
     xtw = x.T * w
@@ -156,7 +169,7 @@ def total_error(g, res):
 
 def main() -> None:
     games = load(sqlite3.connect(DB_PATH))
-    ratings = Cfg(qb_ratings=True, qb_flag=False, qb_shrink=10, inexp_k=32)
+    ratings = Cfg(qb_ratings=True, qb_flag=False, qb_shrink=10, inexp_k=32, shrink=5, sd=12)
     candidates = [
         ("Usual-starter flag (model version 1)", Cfg()),
         ("Quarterback ratings instead of the flag", ratings),
@@ -166,6 +179,13 @@ def main() -> None:
         ("Quarterback ratings + weather", replace(ratings, weather=True)),
         ("Quarterback ratings, last season's games counted less", replace(ratings, prev_weight=0.75)),
     ]
+    if games["home_epa"].notna().any():
+        early = games[(games["status"] == "final") & (games["season"] <= 2009)].dropna(subset=["home_epa"])
+        b, a = np.polyfit(np.concatenate([early["home_epa"], early["away_epa"]]),
+                          np.concatenate([early["home_score"], early["away_score"]]), 1)
+        for weight in (0.25, 0.5):
+            candidates.append((f"Quarterback ratings + EPA blend ({weight:.0%})",
+                               replace(ratings, epa_weight=weight, epa_a=a, epa_b=b)))
     print("Tuning seasons 2010-2017: log loss (lower is better) and average miss on total points")
     for label, cfg in candidates:
         result = backtest(games, 2010, 2017, cfg)

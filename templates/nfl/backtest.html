@@ -48,6 +48,22 @@
   <p class="note">Offense and defense ratings alone did no better than simple Elo ratings on the held-out seasons. Quarterbacks made the real difference: first a simple flag for teams not starting their usual quarterback, then individual ratings for every quarterback, which helped most in the first four weeks of a season (when teams have new starters). The model now captures 75% of the market's edge over a coin flip, up from 65% for Elo. Rest days, travel, domes and weather were also tested and didn't improve the forecasts.</p>
 </section>
 
+{% if player_accuracy %}
+<section class="development">
+  <h2>Player projections</h2>
+  <p class="section-note">Average miss per player per game on the held-out seasons (2018&ndash;2025, about 34,000 player-games), compared with two simple benchmarks: each player's average in his previous three games, and his average so far that season. Lower is better.</p>
+  <table class="dev-table track-table">
+    <thead><tr><th scope="col"></th><th scope="col" class="num">Projection</th><th scope="col" class="num">Last 3 games</th><th scope="col" class="num">Season average</th></tr></thead>
+    <tbody>
+      {% for label, model, last3, season in player_accuracy %}
+      <tr><th scope="row">{{ label }}</th><td class="num"><strong>{{ model }}</strong></td><td class="num">{{ last3 }}</td><td class="num">{{ season }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="note">The projections beat both benchmarks for every stat. Passing yards improved the most (about 12% smaller misses than the season average), helped by knowing which quarterback is starting and how good the opposing pass defense is. There are no free historical betting lines for player stats, so unlike the game forecasts these can't be compared with the market.</p>
+</section>
+{% endif %}
+
 {% if calibration %}
 <section class="development">
   <h2>When the model says 70%, does it happen 70% of the time?</h2>

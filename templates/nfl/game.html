@@ -69,6 +69,42 @@
 </section>
 {% endif %}
 
+{% if players %}
+<section class="detail-section">
+  <h2>Player projections</h2>
+  <p class="section-note">Expected stats for each player{% if finished %}, with what actually happened in brackets{% endif %}. Built from each player's share of his team's passes, carries and targets in recent games, his efficiency (pulled toward his position's average when he has few chances), the opponent's defense, and the points the team model expects. "TD" is the chance of at least one rushing or receiving touchdown.</p>
+  {% for side_team in [g.away, g.home] %}
+  {% for t in players if t.team == side_team %}
+  <h3>{{ nfl_name(t.team) }}</h3>
+  <div class="table-wrap">
+    <table class="goals-table player-table">
+      <thead>
+        <tr><th scope="col">Player</th><th scope="col" class="num">Pass yds</th><th scope="col" class="num">Pass TD</th><th scope="col" class="num">INT</th>
+            <th scope="col" class="num">Rush yds</th><th scope="col" class="num">Rec</th><th scope="col" class="num">Rec yds</th><th scope="col" class="num">TD</th></tr>
+      </thead>
+      <tbody>
+        {% for p in t.players %}
+        {% set a = p.actual %}
+        <tr{% if a and not a.played %} class="muted"{% endif %}>
+          <th scope="row">{{ p.name }} <span class="muted">{{ p.position }}</span></th>
+          <td class="num">{% if p.qb %}{{ p.pass_yds }}{% if a %} <span class="muted">({{ a.pass_yds or 0 }})</span>{% endif %}{% endif %}</td>
+          <td class="num">{% if p.qb %}{{ p.pass_tds }}{% if a %} <span class="muted">({{ a.pass_tds or 0 }})</span>{% endif %}{% endif %}</td>
+          <td class="num">{% if p.qb %}{{ p.ints }}{% if a %} <span class="muted">({{ a.ints or 0 }})</span>{% endif %}{% endif %}</td>
+          <td class="num">{{ p.rush_yds }}{% if a %} <span class="muted">({{ a.rush_yds or 0 }})</span>{% endif %}</td>
+          <td class="num">{% if not p.qb %}{{ p.receptions }}{% if a %} <span class="muted">({{ a.receptions or 0 }})</span>{% endif %}{% endif %}</td>
+          <td class="num">{% if not p.qb %}{{ p.rec_yds }}{% if a %} <span class="muted">({{ a.rec_yds or 0 }})</span>{% endif %}{% endif %}</td>
+          <td class="num">{{ p.anytime_td }}{% if a and a.scored is not none %} <span class="muted">({{ 'yes' if a.scored else 'no' }})</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endfor %}
+  {% endfor %}
+  <p class="note">Players who didn't record a stat in their team's latest game aren't projected (usually injured or inactive); the data has no injury reports.{% if finished %} Greyed-out players didn't record a stat in this game.{% endif %} On the held-out seasons, these projections were closer to the actual numbers than each player's recent averages: see the <a href="{{ base }}/nfl/backtest/">backtest</a>.</p>
+</section>
+{% endif %}
+
 <section class="detail-section">
   <h2>Form going into the game</h2>
   <div class="form-columns">

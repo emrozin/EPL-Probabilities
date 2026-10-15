@@ -566,3 +566,7 @@ code {
 
 .section-gap { margin-top: 2.5rem; }
 .qb-list li { flex-wrap: wrap; }
+
+.player-table th, .player-table td { padding-right: 0.9rem; white-space: nowrap; }
+.player-table tbody th { font-weight: 500; }
+.player-table .muted { font-size: 0.85em; }
