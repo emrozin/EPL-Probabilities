@@ -25,6 +25,7 @@ router = APIRouter(prefix="/nfl")
 
 RECORD_URL = "https://github.com/emrozin/Sports-Probabilities/blob/main/records/nfl_live_predictions.csv"
 RECORD_HISTORY_URL = "https://github.com/emrozin/Sports-Probabilities/commits/main/records/nfl_live_predictions.csv"
+PLAYER_RECORD_URL = "https://github.com/emrozin/Sports-Probabilities/blob/main/records/nfl_player_projections.csv"
 
 # Held-out results (2018-2025, 2,219 games, ties excluded) from nfl/tune_model.py, October 2026.
 DEVELOPMENT = [
@@ -40,9 +41,9 @@ DEVELOPMENT = [
 PLAYER_ACCURACY = [
     ("Passing yards", "61.4", "71.6", "70.0"),
     ("Passing touchdowns", "0.92", "1.00", "0.98"),
-    ("Rushing yards", "8.2", "9.0", "8.7"),
-    ("Receptions", "1.28", "1.37", "1.34"),
-    ("Receiving yards", "17.0", "18.5", "17.9"),
+    ("Rushing yards", "8.2", "8.9", "8.7"),
+    ("Receptions", "1.28", "1.38", "1.34"),
+    ("Receiving yards", "17.0", "18.6", "18.0"),
 ]
 
 # Current names and divisions. Relocated teams appear under their current name throughout
@@ -555,6 +556,16 @@ def player_projections(game_id: int, finished: bool) -> list[dict] | None:
         proj = proj.merge(actual[["player_id", *actual_columns]].rename(columns={c: f"act_{c}" for c in actual_columns}),
                           on="player_id", how="left")
     fmt = lambda v, d=0: "" if v is None or pd.isna(v) else f"{v:.{d}f}"
+    from nfl.players import load_ranges, stat_range
+    ranges = load_ranges() if not finished else None
+
+    def span(stat, value):
+        """'15–95': the 80% range, for upcoming games."""
+        if not ranges or value is None or pd.isna(value) or value < 0.5:
+            return None
+        low, high = stat_range(ranges, stat, value)
+        return f"{low:.0f}\u2013{high:.0f}"
+
     teams = []
     for team, rows in proj.groupby("team"):
         rows = rows.assign(order=(rows["position"] != "QB").astype(int),
@@ -567,7 +578,8 @@ def player_projections(game_id: int, finished: bool) -> list[dict] | None:
             row = {"name": r.name, "position": r.position, "qb": r.position == "QB",
                    "pass_yds": fmt(r.pass_yds), "pass_tds": fmt(r.pass_tds, 1), "ints": fmt(r.ints, 1),
                    "rush_yds": fmt(r.rush_yds), "receptions": fmt(r.receptions, 1), "rec_yds": fmt(r.rec_yds),
-                   "anytime_td": f"{r.anytime_td * 100:.0f}%", "actual": None}
+                   "anytime_td": f"{r.anytime_td * 100:.0f}%", "actual": None,
+                   "ranges": {stat: span(stat, getattr(r, stat)) for stat in ("pass_yds", "rush_yds", "receptions", "rec_yds")}}
             if "act_receiving_yards" in rows:
                 played = not pd.isna(r.act_rushing_yards)
                 tds = (r.act_rushing_tds or 0) + (r.act_receiving_tds or 0) if played else None
@@ -630,13 +642,80 @@ def live_scores(df: pd.DataFrame) -> dict:
             "market_typical": typical_probability(-np.log(market_p).mean()) if len(priced) else None}
 
 
+STAT_LABELS = {"pass_yds": "Passing yards", "pass_tds": "Passing touchdowns", "rush_yds": "Rushing yards",
+               "receptions": "Receptions", "rec_yds": "Receiving yards"}
+
+
+def player_track() -> dict | None:
+    """Live player projections on finished games against what happened and the simple benchmarks."""
+    from nfl.players import STATS, accuracy, compare
+    d = data()
+    if "player_track" in d:
+        return d["player_track"]
+    result = None
+    with connect() as conn:
+        has = conn.execute("SELECT name FROM sqlite_master WHERE name = 'nfl_player_projections'").fetchone()
+        proj = pd.read_sql("""SELECT p.* FROM nfl_player_projections p JOIN games g ON g.id = p.game_id
+                              WHERE g.status = 'final'""", conn) if has else pd.DataFrame()
+        if not proj.empty:
+            games = pd.read_sql("""SELECT g.id, g.season, g.date, i.week, i.game_type FROM games g
+                                   JOIN nfl_game_info i ON i.game_id = g.id""", conn)
+            ids = sorted(set(proj["player_id"]))
+            players = pd.concat([pd.read_sql(f"SELECT * FROM nfl_player_stats WHERE player_id IN "
+                                             f"({','.join('?' * len(ids[i:i + 500]))})", conn, params=ids[i:i + 500])
+                                 for i in range(0, len(ids), 500)], ignore_index=True)
+    if not proj.empty:
+        columns = ["game_id", "player_id", *STATS, "anytime_td"]
+        df = compare(proj[columns], players, games)
+        missing = len(proj) - len(df)
+        acc = accuracy(df).set_index("stat")
+        overall = [{"label": STAT_LABELS[s], "players": int(acc.at[s, "players"]),
+                    "model": f"{acc.at[s, 'model']:.{2 if s in ('pass_tds', 'receptions') else 1}f}",
+                    "last3": f"{acc.at[s, 'last 3 games']:.{2 if s in ('pass_tds', 'receptions') else 1}f}",
+                    "season": f"{acc.at[s, 'season average']:.{2 if s in ('pass_tds', 'receptions') else 1}f}",
+                    "best": acc.at[s, "model"] <= min(acc.at[s, "last 3 games"], acc.at[s, "season average"])}
+                   for s in STATS if acc.at[s, "players"] > 0]
+
+        df = df.merge(games[["id", "week", "game_type"]].rename(columns={"id": "game_id"}), on="game_id")
+        df["proj_total"] = df["proj_pass_yds"] + df["proj_rush_yds"] + df["proj_rec_yds"]
+        df["actual_total"] = df[["passing_yards", "rushing_yards", "receiving_yards"]].fillna(0).sum(axis=1)
+        weeks = []
+        for (season, week), part in sorted(df.groupby(["season", "week"]), key=lambda kv: kv[0], reverse=True):
+            miss = lambda col, actual: (part[col] - part[actual].fillna(0)).abs().mean()
+            weeks.append({"label": f"{season} {week_label(part.iloc[0]['game_type'], week)}", "players": len(part),
+                          "rec_model": f"{miss('proj_rec_yds', 'receiving_yards'):.1f}",
+                          "rec_season": f"{miss('season_rec_yds', 'receiving_yards'):.1f}",
+                          "rush_model": f"{miss('proj_rush_yds', 'rushing_yards'):.1f}",
+                          "rush_season": f"{miss('season_rush_yds', 'rushing_yards'):.1f}"})
+
+        scored = (df["rushing_tds"].fillna(0) + df["receiving_tds"].fillna(0)) > 0
+        bins = pd.cut(df["proj_anytime_td"], [0, 0.15, 0.3, 0.45, 1])
+        calibration = [{"range": f"{int(b.left * 100)}\u2013{int(b.right * 100)}%", "players": len(part),
+                        "predicted": f"{part['proj_anytime_td'].mean() * 100:.0f}%",
+                        "actual": f"{scored[part.index].mean() * 100:.0f}%"}
+                       for b, part in df.groupby(bins, observed=True)]
+
+        latest = df[(df["season"] == df["season"].max())]
+        latest = latest[latest["week"] == latest["week"].max()].copy()
+        latest["miss"] = latest["actual_total"] - latest["proj_total"]
+        surprises = [{"name": r.name, "team": r.team, "projected": f"{r.proj_total:.0f}", "actual": f"{r.actual_total:.0f}",
+                      "url": game_url(data()["games"].set_index("id").at[r.game_id, "source_game_id"])}
+                     for r in latest.reindex(latest["miss"].abs().sort_values(ascending=False).index).head(6).itertuples()]
+        result = {"overall": overall, "weeks": weeks, "calibration": calibration, "surprises": surprises,
+                  "surprise_week": weeks[0]["label"] if weeks else None, "games": int(df["game_id"].nunique()),
+                  "missing": missing}
+    d["player_track"] = result
+    return result
+
+
 @router.get("/track-record/", response_class=HTMLResponse)
 def track_record(request: Request):
     d = data()
     live = d["predictions"][d["predictions"]["source"] == "Saved before kickoff"]
     df = (finished_games().merge(live, on="id").merge(d["closing"], on="id", how="left")
           .sort_values(["date", "kickoff", "home"]))
-    context = {"active": "track", "record_url": RECORD_URL, "history_url": RECORD_HISTORY_URL, "weeks": []}
+    context = {"active": "track", "record_url": RECORD_URL, "history_url": RECORD_HISTORY_URL, "weeks": [],
+               "players": player_track(), "player_record_url": PLAYER_RECORD_URL}
     if df.empty:
         return render(request, "track_record.html", context)
     weeks = []

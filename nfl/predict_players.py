@@ -18,7 +18,7 @@ from pathlib import Path
 import pandas as pd
 
 from db import DB_PATH, SCHEMA_PATH
-from nfl.players import Projector, load
+from nfl.players import Projector, load, load_injuries, load_snaps
 from nfl.predict_upcoming import EASTERN, MODEL_NAME, MODEL_VERSION, has_started
 
 RECORD_PATH = Path("records/nfl_player_projections.csv")
@@ -83,7 +83,7 @@ def main(argv: list[str] | None = None, now: datetime | None = None) -> None:
     games, teams, players = load(conn)
     if players.empty:
         raise SystemExit("No player stats found. Run python -m nfl.import_nfl_stats first.")
-    projections = Projector(games, teams, players).run(
+    projections = Projector(games, teams, players, injuries=load_injuries(conn), snaps=load_snaps(conn)).run(
         {r.id: (r.exp_home, r.exp_away) for r in upcoming.itertuples()})
     with conn:
         conn.executemany("DELETE FROM nfl_player_projections WHERE game_id = ?", [(int(g),) for g in upcoming["id"]])

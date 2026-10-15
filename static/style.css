@@ -570,3 +570,10 @@ code {
 .player-table th, .player-table td { padding-right: 0.9rem; white-space: nowrap; }
 .player-table tbody th { font-weight: 500; }
 .player-table .muted { font-size: 0.85em; }
+.player-table .range { display: block; font-size: 0.78em; color: var(--muted); font-weight: 400; }
+
+/* The backtest's "what improved the model" table bolds its second-to-last row (the current model);
+   other tables that share its style shouldn't. */
+.track-table tr:nth-last-child(2) th { font-weight: 500; }
+.track-table tr:nth-last-child(2) td { font-weight: 400; }
+.empty + .detail-section { margin-top: 2.75rem; }

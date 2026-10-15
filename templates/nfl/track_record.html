@@ -65,4 +65,52 @@
   <p>Forecasts are saved before kickoff on Tuesdays and Fridays, and appear here once the games have been played. <a href="{{ record_url }}">See the prediction file</a>.</p>
 </section>
 {% endif %}
+{% if players %}
+<section class="detail-section">
+  <h2>Player projections</h2>
+  <p class="section-note">Player projections are saved before kickoff too (<a href="{{ player_record_url }}">see the file</a>). Here they're compared with what happened and with two simple benchmarks: each player's average in his previous three games, and his average so far this season. {{ players.games }} game{{ '' if players.games == 1 else 's' }} so far{% if players.missing %}; {{ players.missing }} projected player{{ '' if players.missing == 1 else 's' }} didn't record a stat (usually inactive) and {{ 'is' if players.missing == 1 else 'are' }} left out{% endif %}.</p>
+  <div class="table-wrap">
+    <table class="dev-table track-table">
+      <thead><tr><th scope="col">Average miss per player</th><th scope="col" class="num">Players</th><th scope="col" class="num">Projection</th><th scope="col" class="num">Last 3 games</th><th scope="col" class="num">Season average</th></tr></thead>
+      <tbody>
+        {% for r in players.overall %}
+        <tr><th scope="row">{{ r.label }}</th><td class="num">{{ r.players }}</td><td class="num">{% if r.best %}<strong>{{ r.model }}</strong>{% else %}{{ r.model }}{% endif %}</td><td class="num">{{ r.last3 }}</td><td class="num">{{ r.season }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="note">Lower is better; bold where the projection beat both benchmarks. On the held-out seasons it beat both for every stat, but a single week of NFL games is very noisy.</p>
+
+  {% if players.calibration %}
+  <h3>Touchdowns: when the model gives a player a chance, does he score that often?</h3>
+  <table class="dev-table track-table">
+    <thead><tr><th scope="col">Chance of a touchdown</th><th scope="col" class="num">Players</th><th scope="col" class="num">Average forecast</th><th scope="col" class="num">Scored</th></tr></thead>
+    <tbody>
+      {% for c in players.calibration %}
+      <tr><th scope="row">{{ c.range }}</th><td class="num">{{ c.players }}</td><td class="num">{{ c.predicted }}</td><td class="num">{{ c.actual }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <h3>Week by week</h3>
+  <table class="dev-table track-table">
+    <thead><tr><th scope="col">Week</th><th scope="col" class="num">Players</th><th scope="col" class="num">Receiving yards miss</th><th scope="col" class="num">vs season avg</th><th scope="col" class="num">Rushing yards miss</th><th scope="col" class="num">vs season avg</th></tr></thead>
+    <tbody>
+      {% for w in players.weeks %}
+      <tr><th scope="row">{{ w.label }}</th><td class="num">{{ w.players }}</td><td class="num">{{ w.rec_model }}</td><td class="num muted">{{ w.rec_season }}</td><td class="num">{{ w.rush_model }}</td><td class="num muted">{{ w.rush_season }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if players.surprises %}
+  <h3>Biggest surprises, {{ players.surprise_week }}</h3>
+  <ul class="h2h-list">
+    {% for p in players.surprises %}
+    <li><span class="h2h-date">{{ p.team }}</span><span><a class="team-link" href="{{ p.url }}"><strong>{{ p.name }}</strong></a>: projected {{ p.projected }} total yards, had <strong>{{ p.actual }}</strong></span></li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>
+{% endif %}
 {% endblock %}

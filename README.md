@@ -114,17 +114,17 @@ Offense and defense ratings alone did no better than Elo on the held-out seasons
 
 **What didn't help** (`nfl/experiments.py`): rest days (byes, short weeks), travel across time zones, domes, weather, and counting last season's games less all scored the same or worse on the tuning seasons, so none are in the model. Weather also can't be used live, since nflverse records it only after a game. Learning from **EPA** as well as the score, the NFL's equivalent of the xG blend that helped the Premier League model most, made win predictions worse at every weight tried (it slightly improved total points): once quarterbacks are rated, the score already carries most of the signal.
 
-**Player projections.** Passing, rushing and receiving yards, touchdowns and receptions for every player in upcoming games, from (1) the team's recent passing and running volume, (2) each player's recent share of targets and carries (the listed starting quarterback throws the passes), (3) his efficiency pulled toward his position's average, adjusted for the opposing defense, and (4) touchdowns scaled by the team model's expected points. Tuned on 2012-2017; average miss per player-game on the held-out 2018-2025 seasons (about 34,000 player-games):
+**Player projections.** Passing, rushing and receiving yards, touchdowns and receptions for every player in upcoming games, from (1) the team's recent passing and running volume, (2) each player's recent share of targets and carries, nudged by his latest snap count (the listed starting quarterback throws the passes), (3) the weekly injury report (Out and Doubtful players aren't projected, Questionable players get a slightly smaller role, players back from injury return), (4) his efficiency pulled toward his position's average, adjusted for the opposing defense, and (5) touchdowns scaled by the team model's expected points. Each projection comes with an 80% range. Tuned on 2012-2017; average miss per player-game on the held-out 2018-2025 seasons (about 35,000 player-games):
 
 | | Projection | Last 3 games | Season average |
 |---|---|---|---|
 | Passing yards | **61.4** | 71.6 | 70.0 |
 | Passing touchdowns | **0.92** | 1.00 | 0.98 |
-| Rushing yards | **8.2** | 9.0 | 8.7 |
-| Receptions | **1.28** | 1.37 | 1.34 |
-| Receiving yards | **17.0** | 18.5 | 17.9 |
+| Rushing yards | **8.2** | 8.9 | 8.7 |
+| Receptions | **1.28** | 1.38 | 1.34 |
+| Receiving yards | **17.0** | 18.6 | 18.0 |
 
-Adjusting passing volume for the expected score (trailing teams throw more) was tested and made projections worse. There are no free historical betting lines for player stats, so these are compared with simple benchmarks rather than the market. Projections are saved before kickoff to `records/nfl_player_projections.csv`.
+Each addition was tested with a measure that counts every player who was projected or played (`nfl/player_experiments.py`), so a version can't look better by projecting fewer players. Injury reports cut misses by 4-5% for rushing yards, receptions and receiving yards on the held-out seasons, and snap counts by about 1% more. Not kept: redistributing an injured player's share to teammates, defense by position, air yards (depth of target), and adjusting passing volume for the expected score. The first version of the injury rules looked better than it was because it was scored on a different set of players, and the fair comparison caught it: players who drop off the injury report are often on injured reserve, not returning. The 80% ranges held up on the held-out seasons (79-86% of results inside). There are no free historical betting lines for player stats, so these are compared with simple benchmarks rather than the market. Projections are saved before kickoff to `records/nfl_player_projections.csv`, and the website's track record compares them with what happened and with the benchmarks.
 
 ## Website
 
@@ -145,7 +145,7 @@ NFL pages (under `/nfl/`): upcoming games with win chances, expected margin and 
 
 - **One command updates everything:** `update.py` runs the results, xG, backtest, fixtures, prediction and availability steps in order, stopping at the first failure.
 - **GitHub Actions** runs the test suite on every push, and twice a week (Tuesdays and Fridays) runs the update for both sports and commits new predictions to `records/` before kickoff. If one sport's data source fails, the other sport still updates.
-- **124 pytest tests** cover the importers (including format quirks and source changes), the model (valid probabilities, recovering known team strengths from simulated leagues, no look-ahead in the backtest), the prediction record (nothing changes after kickoff), the simulator, the NFL importers, models and player projections (including that nothing uses the game being predicted), and both sports' websites. Tests use simulated leagues and temporary databases, never real data or the network.
+- **129 pytest tests** cover the importers (including format quirks and source changes), the model (valid probabilities, recovering known team strengths from simulated leagues, no look-ahead in the backtest), the prediction record (nothing changes after kickoff), the simulator, the NFL importers, models and player projections (including that nothing uses the game being predicted), and both sports' websites. Tests use simulated leagues and temporary databases, never real data or the network.
 
 ## Project structure
 
@@ -180,8 +180,9 @@ nfl/                    NFL
   elo.py, tune_elo.py     Elo baseline and its tuning
   model.py, tune_model.py Points model with quarterback ratings, and its tuning and comparison
   experiments.py          Tests of rest, travel, domes, weather, EPA and other ideas (none helped)
-  import_nfl_stats.py     Weekly team and player stats with EPA from nflverse-data
-  players.py              Player projections, and their test against simple benchmarks
+  import_nfl_stats.py     Weekly team and player stats with EPA, injury reports and snap counts from nflverse-data
+  players.py              Player projections, their 80% ranges (ranges.json), and their test against benchmarks
+  player_experiments.py   Tests of injury reports, snap counts, air yards and defense by position
   predict_players.py      Projects players for upcoming games and records them before kickoff
   run_backtest.py         Saves walk-forward backtest predictions
   predict_upcoming.py     Predicts the next 8 days' games and records them before kickoff
@@ -208,7 +209,7 @@ pytest                        # run the tests
 
 ## Roadmap
 
-- Injury reports for player projections (players who missed their team's latest game are currently left out)
+- Betting lines for player stats going forward, to compare player projections with the market
 - College football and basketball
 - Player availability: adjust for injured and suspended players, the largest remaining source of the gap to the market
 - An optional "model + market" forecast that blends the model with pre-match odds

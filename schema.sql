@@ -176,6 +176,7 @@ CREATE TABLE IF NOT EXISTS nfl_player_stats (
     passing_tds      INTEGER, interceptions INTEGER,
     carries          INTEGER, rushing_yards INTEGER, rushing_tds INTEGER,
     targets          INTEGER, receptions INTEGER, receiving_yards INTEGER, receiving_tds INTEGER,
+    receiving_air_yards INTEGER,           -- how far downfield his targets were thrown, in total
     PRIMARY KEY (game_id, player_id)
 );
 
@@ -191,4 +192,30 @@ CREATE TABLE IF NOT EXISTS nfl_player_projections (
     carries REAL, rush_yds REAL, rush_tds REAL, anytime_td REAL,
     created_at   TEXT NOT NULL DEFAULT (datetime('now')),
     PRIMARY KEY (game_id, player_id)
+);
+
+-- NFL weekly injury reports from nflverse (nfl/import_nfl_stats.py): each listed player's game status.
+CREATE TABLE IF NOT EXISTS nfl_injuries (
+    season     INTEGER NOT NULL,
+    week       INTEGER NOT NULL,
+    team       TEXT NOT NULL,
+    player_id  TEXT NOT NULL,              -- nflverse's (GSIS) player id, as in nfl_player_stats
+    name       TEXT,
+    position   TEXT,
+    status     TEXT,                       -- 'Out', 'Doubtful', 'Questionable', 'Probable' (older seasons), or empty
+    PRIMARY KEY (season, week, team, player_id)
+);
+
+-- Share of each team's offensive snaps per player (from 2013), from nflverse (nfl/import_nfl_stats.py).
+-- nflverse identifies these players by a different id, so they're matched to nfl_player_stats by
+-- game, team and name; player_id is empty when there's no match (e.g. linemen, who record no stats).
+CREATE TABLE IF NOT EXISTS nfl_snap_counts (
+    game_id       INTEGER NOT NULL REFERENCES games(id),
+    team          TEXT NOT NULL,
+    name          TEXT NOT NULL,
+    position      TEXT,
+    player_id     TEXT,
+    offense_snaps INTEGER,
+    offense_pct   REAL,
+    PRIMARY KEY (game_id, team, name)
 );

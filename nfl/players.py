@@ -10,19 +10,30 @@ For each team in a game, built only from games played before it:
      counting more. (Adjusting for the expected score, since trailing teams throw more, was tested
      and made the projections worse, so it's switched off.)
   2. Shares. Each player's share of the team's targets and carries in his recent games with the
-     team. The expected starting quarterback throws the passes.
+     team, nudged up or down when his share of the offensive snaps in his latest game differs from
+     usual (an early sign of a bigger or smaller role). The expected starting quarterback throws
+     the passes.
   3. Efficiency. Catch rate, yards per target, yards per carry, yards per pass attempt and
      touchdown and interception rates, each pulled toward the average for the player's position
      when he has few opportunities, and adjusted for how much the opponent's defense allows.
   4. Touchdowns are scaled by how many points the team model expects the team to score. The
      chance of scoring at least one touchdown comes from the expected number (a Poisson count).
 
-Players who didn't record a stat in their team's latest game are left out (usually injured or
-inactive): the data has no injury reports, a known limitation.
+Injury reports: players listed Out or Doubtful aren't projected; players listed Questionable get
+85% of their usual share; and a player who missed recent games injured is projected again when
+he's back on the report without being ruled out. Otherwise, players who didn't record a stat in
+their team's latest game are left out (usually inactive). On the held-out seasons, injury reports
+cut the average miss by about 4-5% for rushing yards, receptions and receiving yards.
+
+Comparisons between versions (total_error) count every player who was projected or actually
+played, with a missing projection or a player who didn't play counted as zero, so a version can't
+look better just by projecting fewer players.
 """
 
+import json
 import math
 import sqlite3
+from pathlib import Path
 from collections import defaultdict
 from dataclasses import dataclass
 
@@ -51,6 +62,16 @@ class Settings:
     shrink_defense: float = 200  # pseudo-plays pulling a defense's allowed rates toward the league's
     script: float = 0.0          # extra pass attempts per point the team is expected to trail by:
                                  # tested at 0.1-0.5 and made projections worse, so it's off
+    injuries: bool = True        # use the weekly injury reports (see project_team)
+    questionable: float = 0.85   # share multiplier for players listed Questionable
+    redistribute: float = 0.0    # how much of a ruled-out player's share goes to his teammates (0-1):
+                                 # tested at 0.5 and 1 and made projections slightly worse
+    returner_games: int = 6      # a player who missed games injured is projected again if he played
+                                 # within this many of his team's games
+    snaps: float = 0.5           # target/carry share scaled by (latest snap share / usual snap share) ** this
+    # Tested and switched off (nfl/player_experiments.py): neither improved the projections.
+    defense_by_position: bool = False   # receiving yards adjusted by what the opponent allows to WRs / TEs / RBs
+    air_yards: float = 0.0       # yards-per-target prior scaled by (player's depth of target / position's) ** this
 
 
 SETTINGS = Settings()
@@ -68,6 +89,30 @@ def load(conn) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     teams = pd.read_sql("SELECT * FROM nfl_team_stats", conn)
     players = pd.read_sql("SELECT * FROM nfl_player_stats", conn)
     return games, teams, players
+
+
+OUT_STATUSES = {"Out", "Doubtful"}   # players listed Doubtful almost never play (27 of 3,405 since 2009)
+
+
+def load_snaps(conn) -> dict:
+    """{(game id, player id): share of the team's offensive snaps}; empty if not imported."""
+    try:
+        rows = conn.execute("SELECT game_id, player_id, offense_pct FROM nfl_snap_counts WHERE player_id IS NOT NULL")
+        return {(g, p): pct for g, p, pct in rows}
+    except Exception:
+        return {}
+
+
+def load_injuries(conn) -> dict:
+    """{(season, week, team): {player id: status}} from the weekly injury reports; empty if not imported."""
+    try:
+        df = pd.read_sql("SELECT season, week, team, player_id, status FROM nfl_injuries", conn)
+    except Exception:
+        return {}
+    reports: dict = defaultdict(dict)
+    for r in df.itertuples():
+        reports[(r.season, r.week, r.team)][r.player_id] = r.status
+    return dict(reports)
 
 
 class Ewma:
@@ -96,8 +141,17 @@ class Projector:
     """Plays through games in date order, keeping running team, defense and player numbers, and
     projects any game asked for using only games before its date."""
 
-    def __init__(self, games, teams, players, settings: Settings = SETTINGS):
+    def __init__(self, games, teams, players, settings: Settings = SETTINGS, injuries: dict | None = None,
+                 snaps: dict | None = None):
         self.s = settings
+        self.injuries = injuries or {}
+        self.snaps = snaps or {}
+        self.last_snap: dict[tuple, float] = {}                         # (team, player) -> latest snap share
+        self.allowed_pos = defaultdict(lambda: Ewma(settings.efficiency_decay))   # (team, position) defense
+        self.league_pos = defaultdict(lambda: Ewma(0.995))
+        self.injured_out: dict[str, bool] = {}                         # player -> missed his latest team game injured
+        self.team_games: dict[str, int] = defaultdict(int)             # team -> games played so far
+        self.last_played: dict[tuple, int] = {}                        # (team, player) -> team game number
         self.games = games.set_index("id")
         self.team_stats = teams.set_index(["game_id", "team"])
         self.player_rows = {gid: grp for gid, grp in players.groupby("game_id")}
@@ -128,21 +182,42 @@ class Projector:
             self.league.add(pass_yds=float(t["passing_yards"] or 0), pass_att=pass_att,
                             rush_yds=float(t["rushing_yards"] or 0), carries=carries)
             present = set()
+            by_position = defaultdict(lambda: [0.0, 0.0])           # receiving yards and targets allowed
             for p in mine.itertuples():
+                if p.position in ("WR", "TE", "RB"):
+                    by_position[p.position][0] += 0.0 if pd.isna(p.receiving_yards) else float(p.receiving_yards)
+                    by_position[p.position][1] += 0.0 if pd.isna(p.targets) else float(p.targets)
                 present.add(p.player_id)
                 self.info[p.player_id] = {"name": p.name, "position": p.position}
                 v = lambda x: 0.0 if pd.isna(x) else float(x)
+                snap = self.snaps.get((game_id, p.player_id))
                 self.usage[(team, p.player_id)].add(
                     target_share=v(p.targets) / targets if targets else 0.0,
-                    carry_share=v(p.carries) / carries if carries else 0.0, n=1.0)
+                    carry_share=v(p.carries) / carries if carries else 0.0, n=1.0,
+                    snap=snap or 0.0, snap_n=1.0 if snap is not None else 0.0)
+                if snap is not None:
+                    self.last_snap[(team, p.player_id)] = snap
                 self.skill[p.player_id].add(
                     targets=v(p.targets), receptions=v(p.receptions), rec_yds=v(p.receiving_yards),
                     rec_tds=v(p.receiving_tds), carries=v(p.carries), rush_yds=v(p.rushing_yards),
                     rush_tds=v(p.rushing_tds), att=v(p.pass_attempts), pass_yds=v(p.passing_yards),
-                    pass_tds=v(p.passing_tds), ints=v(p.interceptions))
+                    pass_tds=v(p.passing_tds), ints=v(p.interceptions),
+                    air=v(getattr(p, "receiving_air_yards", 0)), air_targets=v(p.targets)
+                    if not pd.isna(getattr(p, "receiving_air_yards", np.nan)) else 0.0)
+            for pos in ("WR", "TE", "RB"):
+                yds, tgt = by_position[pos]
+                self.allowed_pos[(opp, pos)].add(yds=yds, targets=tgt)
+                self.league_pos[pos].add(yds=yds, targets=tgt)
             # players who didn't appear this game: their usage decays as if they had 0 share
+            report = self.injuries.get((g.season, g.week, team), {})
             for pid in self.roster[team] - present:
                 self.usage[(team, pid)].add(n=0.0)
+                if pid in report:
+                    self.injured_out[pid] = True          # missed it while on the injury report
+            self.team_games[team] += 1
+            for pid in present:
+                self.injured_out.pop(pid, None)
+                self.last_played[(team, pid)] = self.team_games[team]
             self.roster[team] |= present
             self.last_game_players[team] = present
 
@@ -156,6 +231,12 @@ class Projector:
             league = lg.get("rush_yds") / max(lg.get("carries"), 1) or LEAGUE_DEFAULTS["yds_per_carry"]
             allowed = rate(a.get("rush_yds"), a.get("carries"), league, k)
         return allowed / league
+
+    def receiving_factor(self, opp: str, pos: str) -> float:
+        """How much the opponent allows to this position's receivers, per target, relative to the league."""
+        a, lg = self.allowed_pos[(opp, pos)], self.league_pos[pos]
+        league = lg.get("yds") / max(lg.get("targets"), 1) or LEAGUE_DEFAULTS["yds_per_target"]
+        return rate(a.get("yds"), a.get("targets"), league, self.s.shrink_defense / 3) / league
 
     def position_rates(self) -> dict:
         """League-wide efficiency by position, from every player's running numbers (cached per date)."""
@@ -178,11 +259,12 @@ class Projector:
                 "yds_per_att": t["pass_yds"] / t["att"] if t["att"] > 50 else d["yds_per_att"],
                 "pass_td_per_att": t["pass_tds"] / t["att"] if t["att"] > 50 else d["pass_td_per_att"],
                 "int_per_att": t["ints"] / t["att"] if t["att"] > 50 else d["int_per_att"],
+                "adot": t["air"] / t["air_targets"] if t["air_targets"] > 50 else 8.0,
             }
         return out
 
     def project_team(self, team: str, opp: str, expected_points: float | None, expected_margin: float | None,
-                     qb_name: str | None, rates: dict) -> list[dict]:
+                     qb_name: str | None, rates: dict, season: int | None = None, week: int | None = None) -> list[dict]:
         s, vol = self.s, self.volume[team]
         n = vol.get("n")
         if n <= 0:
@@ -197,6 +279,15 @@ class Projector:
         pass_factor, rush_factor = self.defense_factor(opp, "pass"), self.defense_factor(opp, "rush")
 
         candidates = set(self.last_game_players.get(team, set()))
+        report = self.injuries.get((season, week, team), {}) if s.injuries else {}
+        if report:
+            # Players who missed recent games injured and aren't ruled out this week come back.
+            for pid in self.roster[team]:
+                recent = self.team_games[team] - self.last_played.get((team, pid), -99) <= s.returner_games
+                # Still on this week's report but not ruled out: likely to play. (Players dropped from the
+                # report entirely are often on injured reserve, so they don't count.)
+                if self.injured_out.get(pid) and recent and pid in report and report[pid] not in OUT_STATUSES:
+                    candidates.add(pid)
         # The listed starting quarterback plays even if he sat out the team's latest game.
         listed = None
         if qb_name:
@@ -208,14 +299,35 @@ class Projector:
                 self.info[listed] = {"name": qb_name, "position": "QB"}
             candidates.add(listed)
         usage = {pid: self.usage[(team, pid)] for pid in candidates}
-        share = lambda pid, k: usage[pid].get(k) / max(usage[pid].get("n"), 1e-9) * min(1.0, usage[pid].get("n"))
+
+        def share(pid, k):
+            u = usage[pid]
+            value = u.get(k) / max(u.get("n"), 1e-9) * min(1.0, u.get("n"))
+            if s.snaps and u.get("snap_n") > 0.5 and (team, pid) in self.last_snap:
+                usual = u.get("snap") / u.get("snap_n")       # role change: latest snaps vs usual snaps
+                if usual > 0.05:
+                    value *= float(np.clip(self.last_snap[(team, pid)] / usual, 0.5, 1.5)) ** s.snaps
+            return value
         target_shares = {pid: share(pid, "target_share") for pid in candidates}
         carry_shares = {pid: share(pid, "carry_share") for pid in candidates}
+        out_now = {pid for pid in candidates if report.get(pid) in OUT_STATUSES and pid != listed}
         for shares in (target_shares, carry_shares):
+            before = min(1.0, sum(shares.values()))
+            for pid in out_now:                          # ruled out: no projection
+                shares.pop(pid, None)
+            for pid in shares:
+                if report.get(pid) == "Questionable":
+                    shares[pid] *= s.questionable
+            remaining = sum(shares.values())
+            if remaining > 0 and before > remaining:     # his teammates absorb (part of) his share
+                scale = 1 + s.redistribute * (before - remaining) / remaining
+                for pid in shares:
+                    shares[pid] *= scale
             total = sum(shares.values())
             if total > 1:
                 for pid in shares:
                     shares[pid] /= total
+        candidates -= out_now
 
         # the expected starting quarterback throws the passes
         qbs = [pid for pid in candidates if self.info.get(pid, {}).get("position") == "QB"]
@@ -241,11 +353,17 @@ class Projector:
                 continue                                     # backup quarterbacks: not projected
             targets = target_shares.get(pid, 0.0) * pass_att
             car = carry_shares.get(pid, 0.0) * carries
+            ypt_prior = pr["yds_per_target"]
+            if s.air_yards and sk.get("air_targets") > 0:      # deeper targets: more yards per target
+                adot = rate(sk.get("air"), sk.get("air_targets"), pr["adot"], s.shrink_targets)
+                ypt_prior *= max(adot / pr["adot"], 0.2) ** s.air_yards
+            rec_factor = self.receiving_factor(opp, pos) if s.defense_by_position and pos in ("WR", "TE", "RB") \
+                else pass_factor
             row.update(
                 targets=targets,
                 receptions=targets * rate(sk.get("receptions"), sk.get("targets"), pr["catch"], s.shrink_targets),
-                rec_yds=targets * rate(sk.get("rec_yds"), sk.get("targets"), pr["yds_per_target"], s.shrink_targets)
-                * pass_factor,
+                rec_yds=targets * rate(sk.get("rec_yds"), sk.get("targets"), ypt_prior, s.shrink_targets)
+                * rec_factor,
                 rec_tds=targets * rate(sk.get("rec_tds"), sk.get("targets"), pr["rec_td_per_target"],
                                        s.shrink_targets) * td_scale,
                 carries=car,
@@ -277,7 +395,8 @@ class Projector:
                         if pts is not None:
                             exp_pts = pts[0] if side == "home" else pts[1]
                             margin = (pts[0] - pts[1]) * (1 if side == "home" else -1)
-                        for r in self.project_team(team, opp, exp_pts, margin, qb if isinstance(qb, str) else None, rates):
+                        for r in self.project_team(team, opp, exp_pts, margin, qb if isinstance(qb, str) else None,
+                                                   rates, int(g.season), int(g.week)):
                             rows.append({"game_id": gid, **r})
             for gid in group.index[group["status"] == "final"]:
                 self.update(gid)
@@ -292,20 +411,36 @@ STATS = {  # projection column -> actual column
 }
 
 
-def evaluate(projections: pd.DataFrame, players: pd.DataFrame, games: pd.DataFrame) -> pd.DataFrame:
-    """Average miss (mean absolute error) of the projections and of two simple benchmarks: each player's
-    average in his previous 3 games, and his average so far that season (previous season if none)."""
+def benchmarks(players: pd.DataFrame, games: pd.DataFrame) -> pd.DataFrame:
+    """Every player-game with two simple benchmarks for each stat, using only earlier games: the player's
+    average in his previous 3 games (last3_*), and his average so far that season (season_*, falling
+    back to last3_* in his first game of a season)."""
     played = players.merge(games[["id", "season", "date"]], left_on="game_id", right_on="id")
-    played = played.sort_values(["player_id", "date"])
+    played = played.sort_values(["player_id", "date"]).reset_index(drop=True)
     for proj, actual in STATS.items():
-        g = played.groupby("player_id")[actual]
-        played[f"last3_{proj}"] = g.transform(lambda s: s.fillna(0).shift(1).rolling(3, min_periods=1).mean())
-        season_avg = played.groupby(["player_id", "season"])[actual].transform(
-            lambda s: s.fillna(0).shift(1).expanding().mean())
-        played[f"season_{proj}"] = season_avg.fillna(played[f"last3_{proj}"])
+        values = played[actual].fillna(0)
+        previous = values.groupby(played["player_id"]).shift(1)               # each game sees only earlier ones
+        played[f"last3_{proj}"] = (previous.groupby(played["player_id"]).rolling(3, min_periods=1).mean()
+                                   .reset_index(level=0, drop=True))
+        in_season = values.groupby([played["player_id"], played["season"]]).shift(1)
+        keys = [played["player_id"], played["season"]]
+        season_avg = in_season.fillna(0).groupby(keys).cumsum() / in_season.notna().groupby(keys).cumsum()
+        played[f"season_{proj}"] = season_avg.where(in_season.notna().groupby(keys).cumsum() > 0).fillna(
+            played[f"last3_{proj}"])
+    return played
+
+
+def compare(projections: pd.DataFrame, players: pd.DataFrame, games: pd.DataFrame) -> pd.DataFrame:
+    """Projections (proj_* columns) next to what happened and the benchmarks, for players who played.
+    Players projected but absent from the game's stats (didn't play, or recorded nothing) are left out."""
     projections = projections.rename(columns={c: f"proj_{c}" for c in projections.columns
                                               if c not in ("game_id", "player_id")})
-    df = projections.merge(played, on=["game_id", "player_id"])
+    history = players[players["player_id"].isin(set(projections["player_id"]))]   # only these players' games
+    return projections.merge(benchmarks(history, games), on=["game_id", "player_id"])
+
+
+def accuracy(df: pd.DataFrame) -> pd.DataFrame:
+    """Average miss of the projections and the benchmarks for each stat, from compare()'s output."""
     rows = []
     for proj, actual in STATS.items():
         sub = df[df[f"proj_{proj}"] > 0.5] if proj in ("pass_yds", "pass_tds") else df
@@ -318,11 +453,77 @@ def evaluate(projections: pd.DataFrame, players: pd.DataFrame, games: pd.DataFra
     td = df.dropna(subset=["proj_anytime_td"])
     scored = ((td["rushing_tds"].fillna(0) + td["receiving_tds"].fillna(0)) > 0).astype(float)
     p = td["proj_anytime_td"].clip(0.01, 0.99)
+    base = scored.mean() if len(td) else np.nan
     rows.append({"stat": "anytime TD (log loss)", "players": len(td),
-                 "model": float(-(scored * np.log(p) + (1 - scored) * np.log(1 - p)).mean()),
-                 "last 3 games": np.nan, "season average": float(-(scored * np.log(scored.mean()) + (1 - scored)
-                                                                   * np.log(1 - scored.mean())).mean())})
+                 "model": float(-(scored * np.log(p) + (1 - scored) * np.log(1 - p)).mean()) if len(td) else np.nan,
+                 "last 3 games": np.nan,
+                 "season average": float(-(scored * np.log(base) + (1 - scored) * np.log(1 - base)).mean())
+                 if 0 < base < 1 else np.nan})
     return pd.DataFrame(rows)
+
+
+def total_error(projections: pd.DataFrame, players: pd.DataFrame, game_ids) -> dict:
+    """Average miss per player-game actually played, counting every player who was projected or played
+    (missing projection or didn't play = 0). For comparing versions fairly."""
+    columns = {"pass_yds": "passing_yards", "rush_yds": "rushing_yards", "receptions": "receptions",
+               "rec_yds": "receiving_yards"}
+    actual = players[players["game_id"].isin(set(game_ids)) & players["position"].isin(POSITIONS)]
+    p = projections[["game_id", "player_id", *columns]].rename(columns={k: f"p_{k}" for k in columns})
+    a = actual[["game_id", "player_id", *columns.values()]].rename(columns={v: f"a_{k}" for k, v in columns.items()})
+    m = p.merge(a, on=["game_id", "player_id"], how="outer").fillna(0)
+    return {k: float((m[f"p_{k}"] - m[f"a_{k}"]).abs().sum() / max(len(actual), 1)) for k in columns}
+
+
+def evaluate(projections: pd.DataFrame, players: pd.DataFrame, games: pd.DataFrame) -> pd.DataFrame:
+    """Average miss (mean absolute error) of the projections and of the two benchmarks."""
+    return accuracy(compare(projections, players, games))
+
+
+# ---------------------------------------------------------------- ranges
+
+RANGES_PATH = Path(__file__).with_name("ranges.json")
+RANGE_BINS = {"pass_yds": [150, 200, 250], "rush_yds": [10, 25, 45, 70], "rec_yds": [10, 25, 45, 70],
+              "receptions": [1.5, 3, 5]}
+QUANTILES = [round(q, 2) for q in np.arange(0.05, 1.0, 0.05)]   # 5%, 10%, ... 95%
+
+
+def fit_ranges(df: pd.DataFrame) -> dict:
+    """How actual results spread around projections: for each stat and size of projection, quantiles of
+    actual / projected (from compare()'s output, players who played)."""
+    table = {}
+    for stat, edges in RANGE_BINS.items():
+        sub = df[df[f"proj_{stat}"] > 0.5]
+        ratio = sub[STATS[stat]].fillna(0) / sub[f"proj_{stat}"]
+        bins = np.digitize(sub[f"proj_{stat}"], edges)
+        overall = np.quantile(ratio, QUANTILES)
+        # a size band with few projections uses the spread of all of them
+        table[stat] = {"edges": edges, "quantiles": [
+            (np.quantile(ratio[bins == b], QUANTILES) if (bins == b).sum() >= 100 else overall).round(4).tolist()
+            for b in range(len(edges) + 1)]}
+    return table
+
+
+def load_ranges() -> dict | None:
+    return json.loads(RANGES_PATH.read_text()) if RANGES_PATH.exists() else None
+
+
+def stat_range(table: dict, stat: str, projected: float, low: float = 0.1, high: float = 0.9) -> tuple[float, float]:
+    """The range the actual result falls in with probability high - low (80% by default)."""
+    t = table[stat]
+    q = t["quantiles"][int(np.digitize(projected, t["edges"]))]
+    return projected * float(np.interp(low, QUANTILES, q)), projected * float(np.interp(high, QUANTILES, q))
+
+
+def coverage(table: dict, df: pd.DataFrame) -> dict:
+    """Share of actual results inside the 80% range, per stat (should be close to 80%)."""
+    out = {}
+    for stat in RANGE_BINS:
+        sub = df[df[f"proj_{stat}"] > 0.5]
+        bounds = [stat_range(table, stat, v) for v in sub[f"proj_{stat}"]]
+        actual = sub[STATS[stat]].fillna(0).to_numpy()
+        inside = [lo <= a <= hi for (lo, hi), a in zip(bounds, actual)]
+        out[stat] = float(np.mean(inside)) if inside else float("nan")
+    return out
 
 
 def backtest_targets(conn, first: int, last: int) -> dict:
@@ -337,15 +538,23 @@ def backtest_targets(conn, first: int, last: int) -> dict:
 
 
 def main() -> None:
+    """Test the projections on past seasons, and (re)build the ranges in nfl/ranges.json from the tuning seasons."""
     conn = sqlite3.connect(DB_PATH)
     games, teams, players = load(conn)
     if players.empty:
         raise SystemExit("No player stats found. Run python -m nfl.import_nfl_stats first.")
+    injuries, snaps = load_injuries(conn), load_snaps(conn)
+    table = None
     for label, (first, last) in (("Tuning seasons 2012-2017", (2012, 2017)), ("Held-out seasons 2018-2025", (2018, 2025))):
-        projections = Projector(games, teams, players).run(backtest_targets(conn, first, last))
-        result = evaluate(projections, players, games)
+        projections = Projector(games, teams, players, injuries=injuries, snaps=snaps).run(backtest_targets(conn, first, last))
+        compared = compare(projections, players, games)
         print(f"\n{label}: average miss per player-game (lower is better)")
-        print(result.round(3).to_string(index=False))
+        print(accuracy(compared).round(3).to_string(index=False))
+        if table is None:
+            table = fit_ranges(compared)   # ranges come from the tuning seasons only
+            RANGES_PATH.write_text(json.dumps(table, indent=1))
+        print("Share of results inside the 80% range: " +
+              ", ".join(f"{k} {v:.0%}" for k, v in coverage(table, compared).items()))
     conn.close()
 
 
