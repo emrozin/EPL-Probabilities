@@ -19,6 +19,29 @@ templates.env.globals["base"] = BASE
 # The sport menu in the header: (label, sport code, home page)
 templates.env.globals["sports"] = [("Premier League", "epl", f"{BASE}/"), ("NFL", "nfl", f"{BASE}/nfl/")]
 
+# Team colors (colors.py): style="..." strings that set --home/--away (a game) or --team (a team page)
+import colors  # noqa: E402
+
+templates.env.globals["nfl_colors"] = lambda home, away: colors.style(colors.NFL, home, away)
+templates.env.globals["epl_colors"] = lambda home, away: colors.style(colors.EPL, home, away)
+templates.env.globals["nfl_team_colors"] = lambda team: colors.team_style(colors.NFL, team)
+templates.env.globals["epl_team_colors"] = lambda team: colors.team_style(colors.EPL, team)
+# a small square in a team's main color, before its name in tables
+templates.env.globals["nfl_chip"] = lambda team: colors.chip(colors.NFL, team)
+templates.env.globals["epl_chip"] = lambda team: colors.chip(colors.EPL, team)
+
+
+def edge(model: dict | None, market: dict | None, sides: dict, threshold: int = 5) -> dict | None:
+    """Where the model and the betting market disagree by at least `threshold` percentage points on
+    a team's chance of winning: {"team", "points"} for the team the model rates higher, else None.
+    sides maps 'home'/'away' to team names."""
+    if not model or not market:
+        return None
+    best = max(("home", "away"), key=lambda s: model[s] - market[s])
+    gap = model[best] - market[best]
+    return {"team": sides[best], "points": int(gap)} if gap >= threshold else None
+
+
 
 def slugify(name: str) -> str:
     """'Nott'm Forest' -> 'nottm-forest'"""
@@ -56,3 +79,6 @@ def typical_probability(log_loss: float) -> str:
     One decimal place, because the model and the market are often less than a point apart.
     """
     return f"{math.exp(-log_loss) * 100:.1f}"
+
+
+templates.env.globals["signed_number"] = signed_number

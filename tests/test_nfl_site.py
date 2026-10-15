@@ -168,7 +168,7 @@ def test_unknown_nfl_pages_are_404_with_nfl_navigation(client):
 
 def test_sport_menu_links_both_sports(client):
     page = client.get("/nfl/").text
-    assert 'value="/"' in page and 'value="/nfl/"' in page
+    assert 'href="/"' in page and 'href="/nfl/"' in page and 'class="sport-tabs"' in page
 
 
 def test_update_keeps_going_when_one_sport_fails(monkeypatch, capsys):

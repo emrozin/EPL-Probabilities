@@ -1,12 +1,16 @@
 {% extends "base.html" %}
-{% from "nfl/macros.html" import game_row, key %}
+{% from "nfl/macros.html" import game_row, key, props_table %}
 {% block title %}Upcoming games | NFL probabilities{% endblock %}
 
 {% block content %}
 <div class="intro">
   <h1>Upcoming games{% if week %}: {{ week }}{% endif %}</h1>
-  <p>For each game, the thick bar is the model's chance of each team winning. The thin bar underneath is the betting market's view, from the moneylines with the bookmaker's margin removed. Under the bars: the model's expected margin and total points, next to the market's spread and total.</p>
-  {{ key() }}
+  <p class="lede">The model's chance of each team winning, next to the betting market's.</p>
+  <details class="explain">
+    <summary>How to read this</summary>
+    <p>The big numbers are the model's chance of each team winning. The thick bar shows the same split; the thin bar under it is the betting market's view, from the moneylines with the bookmaker's margin removed. The table compares the model's expected margin and total points with the market's spread and total.</p>
+    <p>A tag like <span class="edge">Model 7 pts higher on DEN</span> marks a game where the model gives a team a chance of winning at least 5 points higher than the market does. Each team is shown in its own colors; when two are too alike, the away team wears its second color.</p>
+  </details>
 </div>
 
 {% if days %}
@@ -14,9 +18,16 @@
   <section class="day">
     <h2>{{ day.label }}</h2>
     <ul class="matches">{% for g in day.games %}{{ game_row(g) }}{% endfor %}</ul>
+    {% if day.props %}
+    <div class="day-props">
+      <h3 class="props-heading">{{ day.label.split(' ')[0] }}'s likeliest player props{% if day.games|length > 1 %}, across all {{ day.games|length }} games{% endif %}</h3>
+      {{ props_table(day.props, show_game=True) }}
+      <p class="note">Each game's own top {{ props_per_game }} are on its game page.</p>
+    </div>
+    {% endif %}
   </section>
   {% endfor %}
-  <p class="note">Predictions use each team's expected starting quarterback and his rating, where a starter is listed (usually for this week's games). Further ahead, each team's usual starter is assumed. Predictions are refreshed on Tuesdays and Fridays, saved before kickoff and never changed afterwards: see the <a href="{{ base }}/nfl/track-record/">track record</a>.</p>
+  <p class="note">Predictions use each team's expected starting quarterback and his rating, where a starter is listed (usually for this week's games). Further ahead, each team's usual starter is assumed. "Likeliest player props" are the {{ props_per_day }} common sportsbook props (passing yards from 225, rushing and receiving yards from 50, receptions from 4, and scoring a touchdown) the model thinks are likeliest to hit each day, one per player; likely to hit isn't the same as a good bet, since these aren't compared with the sportsbook's price. Predictions are refreshed on Tuesdays and Fridays, saved before kickoff and never changed afterwards: see the <a href="{{ base }}/nfl/track-record/">track record</a>.</p>
 {% else %}
   <section class="empty">
     <h2>No upcoming games predicted yet</h2>

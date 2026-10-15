@@ -209,3 +209,79 @@ def test_fit_ranges_covers_about_80_percent_of_its_own_data():
                        "proj_receptions": proj / 15, "receptions": proj / 15 * rng.gamma(4.0, 0.25, 5000)})
     cov = coverage(fit_ranges(df), df)
     assert all(0.75 < v < 0.85 for v in cov.values())
+
+
+def test_chance_of_reaching_a_milestone_falls_as_the_milestone_rises():
+    from nfl.players import chance_at_least, load_ranges
+    table = load_ranges()
+    chances = [chance_at_least(table, "rec_yds", 60, m) for m in (20, 40, 60, 80, 100, 150)]
+    assert all(a >= b for a, b in zip(chances, chances[1:])) and chances[0] > chances[-1]
+    assert 0.3 < chance_at_least(table, "rec_yds", 60, 60) < 0.6     # about a coin flip at the projection
+    assert 0.05 <= chance_at_least(table, "pass_yds", 230, 500) <= 0.95
+
+
+def test_milestone_is_the_nearest_round_number():
+    from nfl.players import milestone
+    assert milestone("rec_yds", 92) == 90 and milestone("rec_yds", 3) == 10
+    assert milestone("pass_yds", 231) == 225 and milestone("receptions", 4.4) == 4
+
+
+def test_chances_are_calibrated_on_simulated_data():
+    from nfl.players import chance_calibration, fit_ranges
+    rng = np.random.default_rng(5)
+    proj = rng.uniform(5, 90, 8000)
+    df = pd.DataFrame({"proj_rec_yds": proj, "receiving_yards": np.round(proj * rng.gamma(2.0, 0.5, 8000)),
+                       "proj_rush_yds": proj, "rushing_yards": np.round(proj * rng.gamma(3.0, 1 / 3, 8000)),
+                       "proj_pass_yds": proj * 3, "passing_yards": np.round(proj * 3 * rng.gamma(8.0, 1 / 8, 8000)),
+                       "proj_receptions": proj / 15, "receptions": np.round(proj / 15 * rng.gamma(4.0, 0.25, 8000))})
+    cal = chance_calibration(fit_ranges(df), df)
+    big = cal[cal["players"] > 500]
+    assert (abs(big["predicted"] - big["actual"]) < 0.08).all()
+
+
+def test_props_go_to_the_right_players_and_the_likeliest_is_one_per_player():
+    from nfl.players import likeliest_props, load_ranges, prop_chances, prop_hit
+    proj = pd.DataFrame([
+        {"game_id": 1, "player_id": "qb", "position": "QB", "pass_yds": 260, "rush_yds": 12, "rec_yds": 0,
+         "receptions": 0, "anytime_td": 0.1},
+        {"game_id": 1, "player_id": "wr", "position": "WR", "pass_yds": 0, "rush_yds": 0, "rec_yds": 85,
+         "receptions": 6.5, "anytime_td": 0.45},
+        {"game_id": 2, "player_id": "rb", "position": "RB", "pass_yds": 0, "rush_yds": 70, "rec_yds": 15,
+         "receptions": 2.0, "anytime_td": 0.4}])
+    chances = prop_chances(load_ranges(), proj)
+    assert set(chances.loc[chances["player_id"] == "qb", "stat"]) == {"pass_yds", "rush_yds", "td"}
+    assert "pass_yds" not in set(chances.loc[chances["player_id"] == "wr", "stat"])
+    wr = chances[(chances["player_id"] == "wr") & (chances["stat"] == "rec_yds")].set_index("threshold")["chance"]
+    assert wr[50] > wr[75] > wr[100]
+    picks = likeliest_props(chances, "game_id", 5)
+    assert picks.groupby("game_id").size().to_dict() == {1: 2, 2: 1}
+    assert picks.drop_duplicates("player_id").shape[0] == len(picks)
+    assert picks.iloc[0]["chance"] >= picks.iloc[1]["chance"]
+    row = {"stat": "receptions", "threshold": 5}
+    assert prop_hit(row, pd.Series({"receptions": 5})) and not prop_hit(row, pd.Series({"receptions": 4}))
+    assert prop_hit({"stat": "td", "threshold": 1}, pd.Series({"rushing_tds": 0, "receiving_tds": 1}))
+
+
+def test_likeliest_props_appear_on_the_site_and_their_record_is_kept(stats_project):
+    import app
+    predict_players.main(["--record"], now=NOW)
+    nfl_site._cache.clear()
+    client = TestClient(app.app)
+    assert "Likeliest player props" in client.get("/nfl/").text
+    db = stats_project / "data" / "sports.db"
+    conn = sqlite3.connect(db)
+    week6 = [r[0] for r in conn.execute("""SELECT g.id FROM games g JOIN nfl_game_info i ON i.game_id = g.id
+                                           WHERE g.season = 2026 AND i.week = 6""")]
+    key = conn.execute("SELECT source_game_id FROM nfl_game_info WHERE game_id = ?", (week6[0],)).fetchone()[0]
+    assert "Likeliest player props" in client.get(f"/nfl/game/{key.lower().replace('_', '-')}/").text
+    conn.executemany("UPDATE games SET status = 'final', home_score = 24, away_score = 17 WHERE id = ?",
+                     [(g,) for g in week6])
+    conn.commit()
+    conn.close()
+    add_stats(db, seed=1, only=week6)
+    nfl_site._cache.clear()
+    game = client.get(f"/nfl/game/{key.lower().replace('_', '-')}/").text
+    assert "Hit" in game or "Missed" in game
+    track = nfl_site.player_track()["props"]
+    assert track["overall"]["props"] > 0 and track["weeks"][0]["label"] == "2026 Week 6"
+    assert "Likeliest player props: how many hit?" in client.get("/nfl/track-record/").text

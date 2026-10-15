@@ -35,7 +35,7 @@
       {% for r in rows %}
       <tr class="{% if r.first_relegation %}relegation-line{% endif %}{% if r.relegation %} relegation{% endif %}">
         <td class="num pos">{{ r.position }}</td>
-        <th scope="row"><a class="team-link" href="{{ r.url }}">{{ r.team }}</a></th>
+        <th scope="row">{{ epl_chip(r.team) }}<a class="team-link" href="{{ r.url }}">{{ r.team }}</a></th>
         <td class="num">{{ r.played }}</td>
         <td class="num">{{ r.won }}</td>
         <td class="num">{{ r.drawn }}</td>

@@ -31,8 +31,10 @@ REVERT = 0.5         # share of the way back to 1500 each offseason
 
 
 def load_nfl_games(conn) -> pd.DataFrame:
-    """Every NFL game (played and scheduled) in date order, with what Elo and the backtest need."""
-    return pd.read_sql("""
+    """Every NFL game (played and scheduled) in date order, with what Elo and the backtest need.
+    Starting quarterbacks are checked against the box scores (nfl/quarterbacks.py)."""
+    from nfl.quarterbacks import correct_quarterbacks
+    return correct_quarterbacks(conn, pd.read_sql("""
         SELECT g.id, g.season, g.date, g.status, h.name AS home, a.name AS away,
                g.home_score, g.away_score, i.neutral_site, i.game_type, i.week, i.spread_line,
                i.home_qb, i.away_qb
@@ -42,7 +44,7 @@ def load_nfl_games(conn) -> pd.DataFrame:
         JOIN teams a ON a.id = g.away_team_id
         JOIN nfl_game_info i ON i.game_id = g.id
         ORDER BY g.date, g.id
-    """, conn)
+    """, conn))
 
 
 def load_nfl_market(conn) -> pd.DataFrame:

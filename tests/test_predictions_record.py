@@ -173,6 +173,6 @@ def test_track_record_shows_only_live_predictions_once_played(fixtures, monkeypa
     site._cache.clear()
     html = client.get("/track-record/").text
     assert "1 match since" in html
-    assert html.count('class="match"') == 1            # only the live prediction, not the backtest
+    assert html.count('class="match card') == 1        # only the live prediction, not the backtest
     assert "Saved before kickoff" in html
     assert "fewer matches until then" in html          # no closing odds for it yet

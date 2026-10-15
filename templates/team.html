@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% from "macros.html" import finished_match, season_picker %}
+{% from "charts.html" import chance_columns %}
 {% block title %}{{ team }} | Premier League probabilities{% endblock %}
+{% block main_style %} class="teamed team-page" style="{{ epl_team_colors(team) }}"{% endblock %}
 
 {% block content %}
 <div class="intro">
@@ -32,6 +34,12 @@
     <p class="stat-label">Matches where the model gave the result a higher chance</p>
   </div>
 </div>
+{% endif %}
+
+{% if chance_chart %}
+<section class="team-charts">
+  {{ chance_columns(chance_chart, 'Win chance, match by match', team, 'match') }}
+</section>
 {% endif %}
 
 {% for group in groups %}

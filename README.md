@@ -97,7 +97,7 @@ The fading version closes 11% of the overall gap to the market, and about two-th
 
 Data: every game since 1999 from [nflverse](https://github.com/nflverse/nfldata) (scores, spreads, totals, moneylines from 2006, starting quarterbacks, rest days, weather), plus weekly team and player stats with expected points added (EPA) from [nflverse-data](https://github.com/nflverse/nflverse-data): about 126,000 player-games, in the same database.
 
-**Model.** Each team has an offense rating (points scored above average) and a defense rating (points prevented), plus a home advantage fitted from recent games, so it follows the league's shrinking home edge (about 2.7 points in the 2000s, under 2 since 2020). Ratings are fitted by weighted least squares on four years of games, with a 150-day half-life and shrinkage. The expected margin becomes a win probability through a normal distribution (actual margins land about 12 points either side). **Every starting quarterback has his own rating**, fitted alongside the team ratings and pulled toward average, plus an inexperience term for quarterbacks with few career starts; live predictions use nflverse's expected starters for the current week.
+**Model.** Each team has an offense rating (points scored above average) and a defense rating (points prevented), plus a home advantage fitted from recent games, so it follows the league's shrinking home edge (about 2.7 points in the 2000s, under 2 since 2020). Ratings are fitted by weighted least squares on four years of games, with a 150-day half-life and shrinkage. The expected margin becomes a win probability through a normal distribution (actual margins land about 12 points either side). **Every starting quarterback has his own rating**, fitted alongside the team ratings and pulled toward average, plus an inexperience term for quarterbacks with few career starts; live predictions use nflverse's expected starters for the current week, checked against the box scores (`nfl/quarterbacks.py`). nflverse's listed starter can go stale: in 2026 it listed Drew Lock for Seattle for four weeks after Sam Darnold returned. So a listed quarterback who didn't throw a pass loses the start to the one who threw the most (56 games corrected since 1999), and for upcoming games a listing that names neither the team's last starter nor its usual one is overruled when the last starter finished his game and isn't ruled out on the injury report. `nfl/qb_overrides.csv` names the starter by hand when the data can't know (a benching).
 
 **Results** on held-out seasons (2018-2025, 2,219 games, ties left out; tuned on 2010-2017), log loss:
 
@@ -107,14 +107,15 @@ Data: every game since 1999 from [nflverse](https://github.com/nflverse/nfldata)
 | Elo ratings (baseline) | 0.6382 | 65% |
 | Points model (offense/defense ratings) | 0.6374 | 66% |
 | Points model + usual-starter quarterback flag | 0.6326 | 72% |
-| **Points model + individual quarterback ratings** | **0.6298** | **75%** |
+| Points model + individual quarterback ratings | 0.6298 | 75% |
+| **+ starters checked against the box scores** | **0.6295** | **75%** |
 | Market moneylines | 0.6089 | 100% |
 
 Offense and defense ratings alone did no better than Elo on the held-out seasons, despite looking better on the tuning seasons. Quarterbacks made the real difference. A simple flag for teams not starting their usual quarterback came first (the model had been overrating those teams by about two points); individual quarterback ratings then replaced it, helping most in the first four weeks of a season, when teams have new starters (held-out log loss 0.6493 to 0.6458 in weeks 1-4).
 
 **What didn't help** (`nfl/experiments.py`): rest days (byes, short weeks), travel across time zones, domes, weather, and counting last season's games less all scored the same or worse on the tuning seasons, so none are in the model. Weather also can't be used live, since nflverse records it only after a game. Learning from **EPA** as well as the score, the NFL's equivalent of the xG blend that helped the Premier League model most, made win predictions worse at every weight tried (it slightly improved total points): once quarterbacks are rated, the score already carries most of the signal.
 
-**Player projections.** Passing, rushing and receiving yards, touchdowns and receptions for every player in upcoming games, from (1) the team's recent passing and running volume, (2) each player's recent share of targets and carries, nudged by his latest snap count (the listed starting quarterback throws the passes), (3) the weekly injury report (Out and Doubtful players aren't projected, Questionable players get a slightly smaller role, players back from injury return), (4) his efficiency pulled toward his position's average, adjusted for the opposing defense, and (5) touchdowns scaled by the team model's expected points. Each projection comes with an 80% range. Tuned on 2012-2017; average miss per player-game on the held-out 2018-2025 seasons (about 35,000 player-games):
+**Player projections.** Passing, rushing and receiving yards, touchdowns and receptions for every player in upcoming games, from (1) the team's recent passing and running volume, (2) each player's recent share of targets and carries, nudged by his latest snap count (the listed starting quarterback throws the passes), (3) the weekly injury report (Out and Doubtful players aren't projected, Questionable players get a slightly smaller role, players back from injury return), (4) his efficiency pulled toward his position's average, adjusted for the opposing defense, and (5) touchdowns scaled by the team model's expected points. Game pages also show the chance of reaching a round number near each projection (for example "38% for 60+" receiving yards). Tuned on 2012-2017; average miss per player-game on the held-out 2018-2025 seasons (about 35,000 player-games):
 
 | | Projection | Last 3 games | Season average |
 |---|---|---|---|
@@ -124,11 +125,13 @@ Offense and defense ratings alone did no better than Elo on the held-out seasons
 | Receptions | **1.28** | 1.38 | 1.34 |
 | Receiving yards | **17.0** | 18.6 | 18.0 |
 
-Each addition was tested with a measure that counts every player who was projected or played (`nfl/player_experiments.py`), so a version can't look better by projecting fewer players. Injury reports cut misses by 4-5% for rushing yards, receptions and receiving yards on the held-out seasons, and snap counts by about 1% more. Not kept: redistributing an injured player's share to teammates, defense by position, air yards (depth of target), and adjusting passing volume for the expected score. The first version of the injury rules looked better than it was because it was scored on a different set of players, and the fair comparison caught it: players who drop off the injury report are often on injured reserve, not returning. The 80% ranges held up on the held-out seasons (79-86% of results inside). There are no free historical betting lines for player stats, so these are compared with simple benchmarks rather than the market. Projections are saved before kickoff to `records/nfl_player_projections.csv`, and the website's track record compares them with what happened and with the benchmarks.
+Each addition was tested with a measure that counts every player who was projected or played (`nfl/player_experiments.py`), so a version can't look better by projecting fewer players. Injury reports cut misses by 4-5% for rushing yards, receptions and receiving yards on the held-out seasons, and snap counts by about 1% more. Not kept: redistributing an injured player's share to teammates, defense by position, air yards (depth of target), and adjusting passing volume for the expected score. The first version of the injury rules looked better than it was because it was scored on a different set of players, and the fair comparison caught it: players who drop off the injury report are often on injured reserve, not returning. The chances of reaching those round numbers are well calibrated on the held-out seasons (predicted 44% happened 44% of the time, predicted 56% happened 55%). There are no free historical betting lines for player stats, so these are compared with simple benchmarks rather than the market. Projections are saved before kickoff to `records/nfl_player_projections.csv`, and the website's track record compares them with what happened and with the benchmarks.
+
+**Likeliest player props.** For the common sportsbook props (passing yards from 225, rushing and receiving yards from 50, receptions from 4, and scoring a touchdown), the site lists the likeliest to hit in each game and the ten likeliest each day, one per player, and the track record counts how many hit. On the held-out seasons the ten likeliest each day were given 64% on average and 66% hit (4,838 props); the five likeliest per game were given 65% and 65% hit. Likely to hit isn't the same as a good bet, since these aren't compared with the sportsbook's price.
 
 ## Website
 
-A FastAPI app with Jinja templates, currently run locally. A menu in the header switches between the sports. Premier League pages:
+A FastAPI app with Jinja templates, currently run locally. Tabs in the header switch between the sports. Every game is a card in the two teams' own colors (`colors.py`; when two teams' colors are too alike, the away team wears its second one), with big win chances, the model's bar next to the betting market's, and a tag where the model and the market disagree by 5 points or more. Team pages chart the model's win chance for each game (and, for NFL teams, the model's rating week by week, refitted as it stood at the time). The site follows the device's light or dark mode, works on phones, and keeps longer explanations behind "How to read this". Premier League pages:
 
 - **Upcoming:** next fixtures with model probabilities next to the bookmakers' odds
 - **Match pages:** exact-score grid, over/under (with the market's view), both teams to score
@@ -145,7 +148,7 @@ NFL pages (under `/nfl/`): upcoming games with win chances, expected margin and 
 
 - **One command updates everything:** `update.py` runs the results, xG, backtest, fixtures, prediction and availability steps in order, stopping at the first failure.
 - **GitHub Actions** runs the test suite on every push, and twice a week (Tuesdays and Fridays) runs the update for both sports and commits new predictions to `records/` before kickoff. If one sport's data source fails, the other sport still updates.
-- **129 pytest tests** cover the importers (including format quirks and source changes), the model (valid probabilities, recovering known team strengths from simulated leagues, no look-ahead in the backtest), the prediction record (nothing changes after kickoff), the simulator, the NFL importers, models and player projections (including that nothing uses the game being predicted), and both sports' websites. Tests use simulated leagues and temporary databases, never real data or the network.
+- **142 pytest tests** cover the importers (including format quirks and source changes), the model (valid probabilities, recovering known team strengths from simulated leagues, no look-ahead in the backtest), the prediction record (nothing changes after kickoff), the simulator, the NFL importers, models and player projections (including that nothing uses the game being predicted), and both sports' websites. Tests use simulated leagues and temporary databases, never real data or the network.
 
 ## Project structure
 
@@ -153,6 +156,8 @@ NFL pages (under `/nfl/`): upcoming games with win chances, expected margin and 
 update.py               Runs the weekly update, step by step
 db.py                   Shared database helpers; schema.sql defines one database for every sport
 app.py, web.py          The website: Premier League pages and shared helpers (NFL pages in nfl/site.py)
+colors.py               Team colors for the website, with clash and dark-mode handling
+charts.py               The team page charts (drawn as HTML and SVG, no chart library)
 templates/, static/     Page templates and styles; build_site.py renders the site as static HTML
 records/                Official live predictions, saved before kickoff
 tests/                  pytest suite
@@ -181,7 +186,9 @@ nfl/                    NFL
   model.py, tune_model.py Points model with quarterback ratings, and its tuning and comparison
   experiments.py          Tests of rest, travel, domes, weather, EPA and other ideas (none helped)
   import_nfl_stats.py     Weekly team and player stats with EPA, injury reports and snap counts from nflverse-data
-  players.py              Player projections, their 80% ranges (ranges.json), and their test against benchmarks
+  quarterbacks.py         Who actually starts: nflverse's listed starters checked against box scores and injury reports
+  qb_overrides.csv        Starting quarterbacks named by hand (e.g. a benching the data can't see)
+  players.py              Player projections, how results spread around them (ranges.json, for the chances on game pages), and their test against benchmarks
   player_experiments.py   Tests of injury reports, snap counts, air yards and defense by position
   predict_players.py      Projects players for upcoming games and records them before kickoff
   run_backtest.py         Saves walk-forward backtest predictions

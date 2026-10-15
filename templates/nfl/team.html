@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% from "nfl/macros.html" import game_row, season_picker, scorecard %}
+{% from "charts.html" import rating_line, chance_columns %}
 {% block title %}{{ name }} | NFL probabilities{% endblock %}
+{% block main_style %} class="teamed team-page" style="{{ nfl_team_colors(team) }}"{% endblock %}
 
 {% block content %}
 <div class="intro">
@@ -19,6 +21,13 @@
 </div>
 
 {% if summary %}{{ scorecard(summary) }}{% endif %}
+
+{% if rating_chart or chance_chart %}
+<section class="team-charts">
+  {% if rating_chart %}{{ rating_line(rating_chart, 'Model rating through ' ~ season, 'Points per game better (+) or worse (−) than an average team, as the model rated ' ~ nfl_nickname(team) ~ ' at the start of the season and after each week. Hover over a point for the details.') }}{% endif %}
+  {% if chance_chart %}{{ chance_columns(chance_chart, 'Win chance, game by game', nfl_nickname(team)) }}{% endif %}
+</section>
+{% endif %}
 
 {% if coming %}
 <section class="day">

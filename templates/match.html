@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% from "macros.html" import split_bar, team_link, outcome_badge %}
 {% block title %}{{ m.home }} v {{ m.away }} | Premier League probabilities{% endblock %}
+{% block main_style %} class="teamed" style="{{ epl_colors(m.home, m.away) }}"{% endblock %}
 
 {% block content %}
 <div class="match-header">
@@ -46,7 +47,7 @@
   <h2>Every possible score</h2>
   <p class="section-note">
     Expected goals: {{ m.home }} <strong>{{ goals.exp_home }}</strong>, {{ m.away }} <strong>{{ goals.exp_away }}</strong>.
-    Each cell is the model's chance of that exact score. Blue cells are {{ m.home }} wins, gold {{ m.away }} wins and grey draws; the stronger the colour, the likelier the score.{% if finished %} The actual score is outlined.{% endif %}
+    Each cell is the model's chance of that exact score. Cells in {{ m.home }}'s color are {{ m.home }} wins, {{ m.away }}'s color {{ m.away }} wins, and grey draws; the stronger the color, the likelier the score.{% if finished %} The actual score is outlined.{% endif %}
   </p>
   <div class="table-wrap">
     <table class="heatmap">

@@ -41,6 +41,7 @@ import numpy as np
 import pandas as pd
 
 from db import DB_PATH
+from nfl.quarterbacks import correct_quarterbacks
 
 POSITIONS = ("QB", "RB", "WR", "TE")
 LEAGUE_DEFAULTS = {  # starting points for the running league averages (roughly 2010s NFL levels)
@@ -86,6 +87,7 @@ def load(conn) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         JOIN teams h ON h.id = g.home_team_id JOIN teams a ON a.id = g.away_team_id
         JOIN nfl_game_info i ON i.game_id = g.id
         ORDER BY g.date, g.id""", conn)
+    games = correct_quarterbacks(conn, games)   # the listed starter, checked against the box scores
     teams = pd.read_sql("SELECT * FROM nfl_team_stats", conn)
     players = pd.read_sql("SELECT * FROM nfl_player_stats", conn)
     return games, teams, players
@@ -514,6 +516,97 @@ def stat_range(table: dict, stat: str, projected: float, low: float = 0.1, high:
     return projected * float(np.interp(low, QUANTILES, q)), projected * float(np.interp(high, QUANTILES, q))
 
 
+MILESTONES = {"pass_yds": list(range(150, 401, 25)), "rush_yds": [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 125, 150],
+              "rec_yds": [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 125, 150], "receptions": list(range(1, 13))}
+
+
+def milestone(stat: str, projected: float) -> float:
+    """The round number closest to the projection, e.g. 90 receiving yards for a projection of 92."""
+    options = MILESTONES[stat]
+    return min(options, key=lambda m: (abs(m - projected), -m))
+
+
+def chance_at_least(table: dict, stat: str, projected: float, threshold: float) -> float:
+    """Chance the actual result is at least threshold, from the same spread as the ranges.
+    Stats are whole numbers, so "at least 5 catches" is read as more than 4.5. Limited to 5-95%,
+    the part of the spread the table covers."""
+    t = table[stat]
+    q = np.asarray(t["quantiles"][int(np.digitize(projected, t["edges"]))])
+    needed = (threshold - 0.5) / projected
+    # results equal to a quantile value (e.g. many players with 0 yards) count at the top of that tie
+    below = float(np.interp(needed, q, QUANTILES, left=0.0, right=1.0))
+    return float(np.clip(1 - below, 0.05, 0.95))
+
+
+def chance_calibration(table: dict, df: pd.DataFrame) -> pd.DataFrame:
+    """Predicted chance of reaching each player's milestone vs how often it happened, in bands."""
+    rows = []
+    for stat in RANGE_BINS:
+        sub = df[df[f"proj_{stat}"] > 0.5]
+        for proj, actual in zip(sub[f"proj_{stat}"], sub[STATS[stat]].fillna(0)):
+            m = milestone(stat, proj)
+            rows.append((stat, chance_at_least(table, stat, proj, m), actual >= m))
+    out = pd.DataFrame(rows, columns=["stat", "chance", "hit"])
+    out["band"] = pd.cut(out["chance"], [0, 0.2, 0.35, 0.5, 0.65, 0.8, 1.0], include_lowest=True)
+    return (out.groupby("band", observed=True)
+            .agg(players=("hit", "size"), predicted=("chance", "mean"), actual=("hit", "mean")).reset_index())
+
+
+# Sportsbook-style player props: "at least this many". The anytime touchdown comes from the projection itself.
+PROPS = {"pass_yds": [225, 250, 275, 300], "rush_yds": [50, 75, 100], "rec_yds": [50, 75, 100],
+         "receptions": [4, 5, 6, 7, 8]}
+PROP_NAMES = {"pass_yds": "passing yards", "rush_yds": "rushing yards", "rec_yds": "receiving yards",
+              "receptions": "receptions"}
+
+
+def prop_chances(table: dict, proj: pd.DataFrame) -> pd.DataFrame:
+    """Every prop's chance for every projected player: one row per (game_id, player_id, prop).
+    Needs the projection columns pass_yds, rush_yds, rec_yds, receptions, anytime_td and position."""
+    rows = []
+    for r in proj.itertuples():
+        qb = r.position == "QB"
+        for stat, thresholds in PROPS.items():
+            value = getattr(r, stat)
+            if stat == "pass_yds" and not qb or stat in ("receptions", "rec_yds") and qb:
+                continue   # passing props for quarterbacks only, receiving props for everyone else
+            if pd.isna(value) or value < 0.5:
+                continue
+            for t in thresholds:
+                rows.append((r.game_id, r.player_id, stat, t, f"{t}+ {PROP_NAMES[stat]}",
+                             chance_at_least(table, stat, value, t)))
+        if not pd.isna(r.anytime_td):
+            rows.append((r.game_id, r.player_id, "td", 1, "scores a touchdown", float(r.anytime_td)))
+    return pd.DataFrame(rows, columns=["game_id", "player_id", "stat", "threshold", "prop", "chance"])
+
+
+def likeliest_props(chances: pd.DataFrame, by: str, n: int) -> pd.DataFrame:
+    """The n likeliest props in each group (e.g. per game or per day), at most one per player:
+    his likeliest. Ties go to the bigger milestone."""
+    best = (chances.sort_values(["chance", "threshold"], ascending=False)
+            .drop_duplicates(["game_id", "player_id"]))
+    return best.groupby(by, sort=False).head(n)
+
+
+def prop_hit(row, actual) -> bool:
+    """Whether a prop came in, given the player's actual stats row (nfl_player_stats columns)."""
+    value = lambda c: 0 if c not in actual or pd.isna(actual[c]) else actual[c]
+    if row["stat"] == "td":
+        return value("rushing_tds") + value("receiving_tds") > 0
+    return value(STATS[row["stat"]]) >= row["threshold"]
+
+
+def props_backtest(table: dict, df: pd.DataFrame, by: str, n: int) -> pd.DataFrame:
+    """The likeliest props from compare()'s output, with whether each one hit."""
+    proj = df[["game_id", "player_id", "date", *(f"proj_{c}" for c in
+                                                 ("position", "pass_yds", "rush_yds", "rec_yds", "receptions", "anytime_td"))]]
+    proj = proj.rename(columns=lambda c: c.removeprefix("proj_"))
+    chances = prop_chances(table, proj).merge(proj[["game_id", "player_id", "date"]], on=["game_id", "player_id"])
+    picks = likeliest_props(chances, by, n)
+    actual = df.set_index(["game_id", "player_id"])
+    picks["hit"] = [prop_hit(r, actual.loc[(r["game_id"], r["player_id"])]) for _, r in picks.iterrows()]
+    return picks
+
+
 def coverage(table: dict, df: pd.DataFrame) -> dict:
     """Share of actual results inside the 80% range, per stat (should be close to 80%)."""
     out = {}
@@ -555,6 +648,12 @@ def main() -> None:
             RANGES_PATH.write_text(json.dumps(table, indent=1))
         print("Share of results inside the 80% range: " +
               ", ".join(f"{k} {v:.0%}" for k, v in coverage(table, compared).items()))
+        print("Chance of reaching the milestone shown on game pages, predicted vs actual:")
+        print(chance_calibration(table, compared).round(3).to_string(index=False))
+        print("Likeliest props (one per player), predicted vs how often they hit:")
+        for label_, by, n in (("top 10 per day", "date", 10), ("top 5 per game", "game_id", 5)):
+            picks = props_backtest(table, compared, by, n)
+            print(f"  {label_}: {len(picks)} props, predicted {picks['chance'].mean():.1%}, hit {picks['hit'].mean():.1%}")
     conn.close()
 
 

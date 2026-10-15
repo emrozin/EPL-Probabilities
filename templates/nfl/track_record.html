@@ -93,6 +93,19 @@
   </table>
   {% endif %}
 
+  {% if players.props %}
+  <h3>Likeliest player props: how many hit?</h3>
+  <p class="section-note">The ten likeliest props each day, as listed on the upcoming games page: {{ players.props.overall.hits }} of {{ players.props.overall.props }} hit ({{ players.props.overall.hit_rate }}), against the model's average chance of {{ players.props.overall.expected }}. If the chances are right, those two numbers should be close over time.</p>
+  <table class="dev-table track-table">
+    <thead><tr><th scope="col">Week</th><th scope="col" class="num">Props</th><th scope="col" class="num">Hit</th><th scope="col" class="num">Hit rate</th><th scope="col" class="num">Model's average chance</th></tr></thead>
+    <tbody>
+      {% for w in players.props.weeks %}
+      <tr><th scope="row">{{ w.label }}</th><td class="num">{{ w.props }}</td><td class="num">{{ w.hits }}</td><td class="num">{{ w.hit_rate }}</td><td class="num">{{ w.expected }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
   <h3>Week by week</h3>
   <table class="dev-table track-table">
     <thead><tr><th scope="col">Week</th><th scope="col" class="num">Players</th><th scope="col" class="num">Receiving yards miss</th><th scope="col" class="num">vs season avg</th><th scope="col" class="num">Rushing yards miss</th><th scope="col" class="num">vs season avg</th></tr></thead>

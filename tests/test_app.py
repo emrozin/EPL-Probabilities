@@ -53,8 +53,8 @@ def test_every_link_on_the_site_works(client):
 
 def test_results_page_highlights_the_winner(client):
     html = client.get("/results/").text
-    assert 'class="teams finished"' in html
-    assert "winner" in html or "level" in html
+    assert 'is-finished' in html                       # finished matches are drawn as result cards
+    assert "side-home winner" in html or "side-home level" in html or "side-home loser" in html
 
 
 def test_percentages_always_add_up_to_100():

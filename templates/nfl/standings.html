@@ -32,7 +32,7 @@
         <tbody>
           {% for r in group.rows %}
           <tr>
-            <th scope="row"><a class="team-link" href="{{ r.url }}">{{ r.name }}</a></th>
+            <th scope="row">{{ nfl_chip(r.team) }}<a class="team-link" href="{{ r.url }}">{{ r.name }}</a></th>
             <td class="num">{{ r.won }}</td>
             <td class="num">{{ r.lost }}</td>
             {% if has_ties %}<td class="num">{{ r.tied }}</td>{% endif %}

@@ -5,6 +5,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
   <title>{% block title %}{{ sport_name }} {{ 'game' if sport == 'nfl' else 'match' }} probabilities{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15,12 +16,9 @@
   <header class="site-header">
     <div class="site-brand">
       <a class="site-title" href="{{ base }}{{ '/nfl/' if sport == 'nfl' else '/' }}">{{ sport_name }} probabilities</a>
-      <label class="sport-picker">
-        <span class="visually-hidden">Sport</span>
-        <select onchange="window.location.href = this.value">
-          {% for label, code, url in sports %}<option value="{{ url }}" {% if code == sport %}selected{% endif %}>{{ label }}</option>{% endfor %}
-        </select>
-      </label>
+      <nav class="sport-tabs" aria-label="Sport">
+        {% for label, code, url in sports %}<a href="{{ url }}" {% if code == sport %}aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
+      </nav>
     </div>
     <nav aria-label="Main">
       {% if sport == 'nfl' %}
@@ -42,7 +40,7 @@
     </nav>
   </header>
 
-  <main>
+  <main{% block main_style %}{% endblock %}>
     {% block content %}{% endblock %}
   </main>
 

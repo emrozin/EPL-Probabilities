@@ -26,7 +26,7 @@ from epl.model import (TRAINING_YEARS, add_scores, fit_poisson, goal_markets, lo
 from epl.predict_upcoming import MODEL_NAME, MODEL_VERSION
 from epl.run_backtest import BACKTEST_NAME, BACKTEST_VERSION, HELD_OUT_FROM, START_SEASON
 from epl.simulate import remaining_fixtures, simulate_season
-from web import BASE, ROOT, day_label, ordinal, signed_number, slugify, templates, typical_probability
+from web import BASE, ROOT, day_label, edge, ordinal, signed_number, slugify, templates, typical_probability
 
 DB_PATH = ROOT / "data" / "sports.db"
 
@@ -246,6 +246,7 @@ def match_card(m) -> dict:
     if has_market:
         card["market"] = percentages(m.mkt_home, m.mkt_draw, m.mkt_away)
         card["market_actual"] = round(getattr(m, f"mkt_{m.result}") * 100)
+    card["home_score"], card["away_score"] = int(m.home_score), int(m.away_score)
     card["total_goals"] = int(m.home_score + m.away_score)
     card.update(goals_info(getattr(m, "exp_home", None) if has_prediction else None,
                            getattr(m, "exp_away", None), getattr(m, "mkt_over", None),
@@ -360,6 +361,8 @@ def upcoming(request: Request):
                 "market": percentages(m.mkt_home, m.mkt_draw, m.mkt_away) if has_market else None,
                 **goals_info(m.exp_home, m.exp_away, m.mkt_over),
             })
+            day_matches[-1]["edge"] = edge(day_matches[-1]["model"], day_matches[-1]["market"],
+                                           {"home": m.home, "away": m.away})
         days.append({"label": day_label(match_date), "matches": day_matches})
 
     return templates.TemplateResponse(request, "upcoming.html", {"active": "upcoming", "days": days})
@@ -531,6 +534,24 @@ def team_page(request: Request, slug: str, season: int | str | None):
             r = model["ratings"].loc[name]
             ratings = rating_text(r["attack"], r["defense"])
 
+    chance_chart = None
+    if not show_all:
+        from charts import chance_bars
+        bars = []
+        for m in matches.sort_values("date").itertuples():
+            if pd.isna(m.model_home):
+                continue
+            at_home = m.home == name
+            chance = m.model_home if at_home else m.model_away
+            outcome = "D" if m.result == "draw" else ("W" if (m.result == "home") == at_home else "L")
+            opponent = m.away if at_home else m.home
+            own, other = (m.home_score, m.away_score) if at_home else (m.away_score, m.home_score)
+            word = {"W": "won", "D": "drew", "L": "lost"}[outcome]
+            bars.append({"label": "", "chance": chance, "outcome": outcome,
+                         "tip": f"{day_label(m.date, with_year=True)}, {'home to' if at_home else 'away at'} {opponent}: "
+                                f"model {chance * 100:.0f}% to win, {word} {int(own)}\u2013{int(other)}"})
+        chance_chart = chance_bars(bars) if bars else None
+
     options = season_options(seasons, season, lambda s: team_url(name, s))
     if len(seasons) > 1:
         options.insert(0, {"label": "All seasons", "url": team_url(name) + "all/", "selected": show_all})
@@ -549,6 +570,7 @@ def team_page(request: Request, slug: str, season: int | str | None):
         "summary": forecast_summary(matches),
         "groups": groups,
         "seasons": options,
+        "chance_chart": chance_chart,
     })
 
 

@@ -18,7 +18,7 @@ from nfl.elo import load_nfl_games
 from nfl.model import HALF_LIFE_DAYS, INEXPERIENCE_STARTS, MARGIN_SD, TRAINING_YEARS, add_qb_changes, fit, qb_value
 from nfl.predict_upcoming import MODEL_NAME
 from nfl.run_backtest import BACKTEST_NAME, BACKTEST_VERSION, HELD_OUT_FROM, START_SEASON
-from web import BASE, ROOT, day_label, ordinal, signed_number, slugify, templates, typical_probability
+from web import BASE, ROOT, day_label, edge, ordinal, signed_number, slugify, templates, typical_probability
 
 DB_PATH = ROOT / "data" / "sports.db"
 router = APIRouter(prefix="/nfl")
@@ -32,7 +32,8 @@ DEVELOPMENT = [
     ("Elo ratings (baseline)", 0.6382),
     ("Points model: offense and defense ratings", 0.6374),
     ("+ usual-starter quarterback flag", 0.6326),
-    ("+ individual quarterback ratings, replacing the flag (current)", 0.6298),
+    ("+ individual quarterback ratings, replacing the flag", 0.6298),
+    ("+ starters checked against the box scores (current)", 0.6295),
     ("Betting market (moneylines)", 0.6089),
 ]
 
@@ -93,6 +94,7 @@ def game_url(source_id: str) -> str:
 
 templates.env.globals["nfl_team_url"] = team_url
 templates.env.globals["nfl_name"] = team_name
+templates.env.globals["nfl_nickname"] = lambda code: nickname(code)
 
 
 def week_label(game_type: str, week: int) -> str:
@@ -276,9 +278,11 @@ def game_card(g, current_team: str | None = None) -> dict:
         market_home = no_vig(g.home_moneyline, g.away_moneyline)
     if market_home is not None and pd.notna(market_home):
         card["market"] = two_way(market_home)
+    card["edge"] = edge(card["model"], card["market"], {"home": g.home, "away": g.away})
     if finished:
         hs, as_ = int(g.home_score), int(g.away_score)
         card["score"] = f"{as_}–{hs}"   # away first, like the team names
+        card["home_score"], card["away_score"] = hs, as_
         card["result"] = "home" if hs > as_ else "away" if as_ > hs else "tie"
         card["actual_line"] = line_text(hs - as_, g.home, g.away, decimals=0).replace("Even", "Tie")
         card["actual_total"] = hs + as_
@@ -323,10 +327,13 @@ def upcoming(request: Request):
     live = d["predictions"][d["predictions"]["source"] == "Saved before kickoff"]
     games = (d["games"][(d["games"]["status"] == "scheduled") & (d["games"]["date"] >= today)]
              .merge(live, on="id").sort_values(["date", "kickoff", "home"]))
-    days = [{"label": day_label(day), "games": [game_card(g) for g in group.itertuples()]}
+    picks = likeliest([int(i) for i in games["id"]], "date", PROPS_PER_DAY)
+    days = [{"label": day_label(day), "games": [game_card(g) for g in group.itertuples()],
+             "props": prop_rows(picks[picks["date"] == day]) if not picks.empty else []}
             for day, group in games.groupby("date", sort=True)]
     week = week_label(games.iloc[0]["game_type"], int(games.iloc[0]["week"])) if len(games) else None
-    return render(request, "upcoming.html", {"active": "upcoming", "days": days, "week": week})
+    return render(request, "upcoming.html", {"active": "upcoming", "days": days, "week": week,
+                                            "props_per_day": PROPS_PER_DAY, "props_per_game": PROPS_PER_GAME})
 
 
 def week_key(season: int, week: int) -> str:
@@ -449,6 +456,68 @@ def rating_row(model: dict, team: str) -> dict | None:
             "overall_class": "good" if r["offense"] + r["defense"] > 0 else "bad"}
 
 
+SHORT_WEEKS = {"WC": "WC", "DIV": "DIV", "CON": "CONF", "SB": "SB"}
+
+
+def season_ratings(season: int) -> pd.DataFrame:
+    """Every team's overall rating (offense + defense, points per game vs an average team) at the
+    start of a season and after each week played: the model refitted as it stood then.
+    Columns: step, label, team, overall, rank. Cached per season (about a third of a second to build)."""
+    d = data()
+    key = f"season_ratings_{season}"
+    if key in d:
+        return d[key]
+    played = finished_games()
+    season_games = played[played["season"] == season]
+    rows = []
+    if not season_games.empty:
+        weeks = (season_games.groupby(["game_type", "week"], sort=False)["date"].agg(["min", "max"])
+                 .reset_index().sort_values("min"))
+        cutoffs = [("Start", "before the season", weeks.iloc[0]["min"])]
+        for w in weeks.itertuples():
+            after = (pd.Timestamp(w.max) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+            short = SHORT_WEEKS.get(w.game_type, str(w.week))
+            cutoffs.append((short, f"after {week_label(w.game_type, w.week).lower()}", after))
+        for step, (label, when, cutoff) in enumerate(cutoffs):
+            start = (pd.Timestamp(cutoff) - pd.DateOffset(years=TRAINING_YEARS)).strftime("%Y-%m-%d")
+            train = played[(played["date"] >= start) & (played["date"] < cutoff)]
+            if train.empty:
+                continue
+            r = fit(train, cutoff)["ratings"]
+            overall = (r["offense"] + r["defense"]).sort_values(ascending=False)
+            for rank, (team, value) in enumerate(overall.items(), 1):
+                rows.append({"step": step, "label": label, "when": when, "team": team,
+                             "overall": float(value), "rank": rank, "teams": len(overall)})
+    d[key] = pd.DataFrame(rows)
+    return d[key]
+
+
+def team_charts(team: str, season: int, played: pd.DataFrame) -> dict:
+    """The rating line and the per-game win chance columns for a team page."""
+    from charts import chance_bars, line_chart
+    ratings = season_ratings(season)
+    line = None
+    if not ratings.empty:
+        own = ratings[ratings["team"] == team].sort_values("step")
+        line = line_chart([{"label": r.label, "value": r.overall,
+                            "tip": f"{r.when.capitalize()}: {signed_number(r.overall, 1)} points per game, "
+                                   f"{ordinal(r.rank)} of {r.teams}"} for r in own.itertuples()])
+    bars = []
+    for g in played.sort_values("date").itertuples():
+        if pd.isna(g.model_home):
+            continue
+        at_home = g.home == team
+        chance = g.model_home if at_home else 1 - g.model_home
+        own_score, opp_score = (g.home_score, g.away_score) if at_home else (g.away_score, g.home_score)
+        outcome = outcome_letter(own_score, opp_score)
+        opponent = g.away if at_home else g.home
+        word = {"W": "won", "L": "lost", "T": "tied"}[outcome]
+        bars.append({"label": SHORT_WEEKS.get(g.game_type, str(g.week)), "chance": chance, "outcome": outcome,
+                     "tip": f"{week_label(g.game_type, g.week)}, {'vs' if at_home else 'at'} {opponent}: "
+                            f"model {chance * 100:.0f}%, {word} {int(own_score)}–{int(opp_score)}"})
+    return {"rating_chart": line, "chance_chart": chance_bars(bars) if bars else None}
+
+
 @router.get("/team/{slug}/", response_class=HTMLResponse)
 def team_latest(request: Request, slug: str):
     return team_page(request, slug, None)
@@ -501,6 +570,7 @@ def team_page(request: Request, slug: str, season: int | None):
                      for g in coming[coming["model_home"].isna()].itertuples()],
         "standings_url": f"{BASE}/nfl/standings/{season}/",
         "seasons": season_options(seasons, season, lambda s: team_url(team, s)),
+        **team_charts(team, season, played),
     })
 
 
@@ -556,15 +626,17 @@ def player_projections(game_id: int, finished: bool) -> list[dict] | None:
         proj = proj.merge(actual[["player_id", *actual_columns]].rename(columns={c: f"act_{c}" for c in actual_columns}),
                           on="player_id", how="left")
     fmt = lambda v, d=0: "" if v is None or pd.isna(v) else f"{v:.{d}f}"
-    from nfl.players import load_ranges, stat_range
+    from nfl.players import chance_at_least, load_ranges, milestone
     ranges = load_ranges() if not finished else None
 
-    def span(stat, value):
-        """'15–95': the 80% range, for upcoming games."""
-        if not ranges or value is None or pd.isna(value) or value < 0.5:
-            return None
-        low, high = stat_range(ranges, stat, value)
-        return f"{low:.0f}\u2013{high:.0f}"
+    def chance(stat, value):
+        """'38% for 60+': the chance of reaching the round number nearest the projection, for upcoming games."""
+        if not ranges or value is None or pd.isna(value) or value < {"receptions": 1}.get(stat, 5):
+            return None   # too small a role for a milestone to mean much
+        m = milestone(stat, value)
+        p = chance_at_least(ranges, stat, value, m)
+        shown = "<5%" if p <= 0.05 else ">95%" if p >= 0.95 else f"{p * 100:.0f}%"
+        return f"{shown} for {m}+"
 
     teams = []
     for team, rows in proj.groupby("team"):
@@ -579,7 +651,7 @@ def player_projections(game_id: int, finished: bool) -> list[dict] | None:
                    "pass_yds": fmt(r.pass_yds), "pass_tds": fmt(r.pass_tds, 1), "ints": fmt(r.ints, 1),
                    "rush_yds": fmt(r.rush_yds), "receptions": fmt(r.receptions, 1), "rec_yds": fmt(r.rec_yds),
                    "anytime_td": f"{r.anytime_td * 100:.0f}%", "actual": None,
-                   "ranges": {stat: span(stat, getattr(r, stat)) for stat in ("pass_yds", "rush_yds", "receptions", "rec_yds")}}
+                   "chances": {stat: chance(stat, getattr(r, stat)) for stat in ("pass_yds", "rush_yds", "receptions", "rec_yds")}}
             if "act_receiving_yards" in rows:
                 played = not pd.isna(r.act_rushing_yards)
                 tds = (r.act_rushing_tds or 0) + (r.act_receiving_tds or 0) if played else None
@@ -590,6 +662,62 @@ def player_projections(game_id: int, finished: bool) -> list[dict] | None:
             players.append(row)
         teams.append({"team": team, "players": players})
     return teams
+
+
+PROPS_PER_GAME = 5
+PROPS_PER_DAY = 10
+
+
+def likeliest(game_ids: list[int], by: str, n: int) -> pd.DataFrame:
+    """The likeliest player props for these games (one per player), n per game or per day (by="game_id" or
+    "date"), with whether each hit once the game is final. Empty if there are no projections."""
+    from nfl.players import likeliest_props, load_ranges, prop_chances, prop_hit
+    table = load_ranges()
+    if not game_ids or table is None:
+        return pd.DataFrame()
+    marks = ",".join("?" * len(game_ids))
+    with connect() as conn:
+        if conn.execute("SELECT name FROM sqlite_master WHERE name = 'nfl_player_projections'").fetchone() is None:
+            return pd.DataFrame()
+        proj = pd.read_sql(f"SELECT * FROM nfl_player_projections WHERE game_id IN ({marks})", conn, params=game_ids)
+        actual = pd.read_sql(f"SELECT * FROM nfl_player_stats WHERE game_id IN ({marks})", conn, params=game_ids)
+    if proj.empty:
+        return pd.DataFrame()
+    games = data()["games"].set_index("id")
+    chances = prop_chances(table, proj)
+    if chances.empty:
+        return pd.DataFrame()
+    chances["date"] = chances["game_id"].map(games["date"])
+    picks = likeliest_props(chances, by, n).merge(proj[["game_id", "player_id", "name", "team", "position"]],
+                                                   on=["game_id", "player_id"])
+    actual = actual.set_index(["game_id", "player_id"])
+    final = set(games.index[games["status"] == "final"])
+
+    def hit(r):
+        if r["game_id"] not in final:
+            return None
+        key = (r["game_id"], r["player_id"])
+        return prop_hit(r, actual.loc[key]) if key in actual.index else False   # recorded nothing: missed
+
+    picks["hit"] = [hit(r) for _, r in picks.iterrows()]
+    picks["matchup"] = [f"{games.at[g, 'away']} at {games.at[g, 'home']}" for g in picks["game_id"]]
+    picks["url"] = [game_url(games.at[g, "source_game_id"]) for g in picks["game_id"]]
+    return picks.sort_values(["chance", "threshold"], ascending=False)
+
+
+def prop_rows(picks: pd.DataFrame) -> list[dict]:
+    return [{"name": r.name, "team": r.team, "position": r.position, "prop": r.prop,
+             "chance": ">95%" if r.chance >= 0.95 else f"{r.chance * 100:.0f}%", "hit": r.hit,
+             "matchup": r.matchup, "url": r.url} for r in picks.itertuples()]
+
+
+def prop_record(picks: pd.DataFrame) -> dict | None:
+    done = picks[picks["hit"].notna()]
+    if done.empty:
+        return None
+    return {"props": len(done), "hits": int(done["hit"].astype(bool).sum()),
+            "hit_rate": f"{done['hit'].astype(bool).mean() * 100:.0f}%",
+            "expected": f"{done['chance'].mean() * 100:.0f}%"}
 
 
 @router.get("/game/{key}/", response_class=HTMLResponse)
@@ -609,6 +737,8 @@ def game_page(request: Request, key: str):
                                                      getattr(g, f"{side}_qb_starts")), 1) if model else None)
         qb = {side: {"name": getattr(g, f"{side}_qb_expected"), "listed": isinstance(getattr(g, f"{side}_qb"), str),
                      "change": bool(getattr(g, f"{side}_qb_change")), "value": value(side),
+                     "replaced": (getattr(g, f"{side}_qb_listed") if isinstance(getattr(g, f"{side}_qb_listed"), str)
+                                  and getattr(g, f"{side}_qb_listed") != getattr(g, f"{side}_qb") else None),
                      "starts": None if pd.isna(getattr(g, f"{side}_qb_starts")) else int(getattr(g, f"{side}_qb_starts"))}
               for side in ("away", "home")}
     expected = None
@@ -622,6 +752,7 @@ def game_page(request: Request, key: str):
         "h2h": head_to_head(games, g.away, g.home, g.date),
         "margin_sd": f"{MARGIN_SD:g}",
         "players": player_projections(int(g.id), finished),
+        "props": prop_rows(likeliest([int(g.id)], "game_id", PROPS_PER_GAME)),
     })
 
 
@@ -701,9 +832,18 @@ def player_track() -> dict | None:
         surprises = [{"name": r.name, "team": r.team, "projected": f"{r.proj_total:.0f}", "actual": f"{r.actual_total:.0f}",
                       "url": game_url(data()["games"].set_index("id").at[r.game_id, "source_game_id"])}
                      for r in latest.reindex(latest["miss"].abs().sort_values(ascending=False).index).head(6).itertuples()]
+        props = None
+        picks = likeliest(sorted(int(i) for i in proj["game_id"].unique()), "date", PROPS_PER_DAY)
+        if not picks.empty and prop_record(picks):
+            info = data()["games"].set_index("id")
+            picks["season"], picks["week"] = picks["game_id"].map(info["season"]), picks["game_id"].map(info["week"])
+            props = {"overall": prop_record(picks), "weeks": [
+                {"label": f"{season} {week_label(info.at[part.iloc[0]['game_id'], 'game_type'], week)}", **prop_record(part)}
+                for (season, week), part in sorted(picks.groupby(["season", "week"]), key=lambda kv: kv[0], reverse=True)
+                if prop_record(part)]}
         result = {"overall": overall, "weeks": weeks, "calibration": calibration, "surprises": surprises,
                   "surprise_week": weeks[0]["label"] if weeks else None, "games": int(df["game_id"].nunique()),
-                  "missing": missing}
+                  "missing": missing, "props": props}
     d["player_track"] = result
     return result
 

@@ -1,0 +1,49 @@
+{# Team page charts. Points and bars carry their numbers in a tooltip (hover, or keyboard focus). #}
+
+{% macro rating_line(chart, title, unit, zero_label='Average team') %}
+<figure class="chart chart-line">
+  <figcaption class="chart-title">{{ title }}</figcaption>
+  <div class="chart-body">
+    <div class="chart-y" aria-hidden="true">
+      {% for t in chart.ticks %}<span style="top: {{ t.y }}%">{{ signed_number(t.value, 0) }}</span>{% endfor %}
+    </div>
+    <div class="chart-plot">
+      {% for t in chart.ticks %}<span class="grid{% if t.value == 0 %} grid-zero{% endif %}" style="top: {{ t.y }}%"></span>{% endfor %}
+      <span class="zero-label" style="top: {{ (chart.ticks[2].y) }}%">{{ zero_label }}</span>
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="{{ chart.path }}"/></svg>
+      {% for p in chart.points %}
+      <span class="pt{% if loop.last %} pt-last{% endif %}" style="left: {{ p.x }}%; top: {{ p.y }}%" tabindex="0" data-tip="{{ p.tip }}" aria-label="{{ p.tip }}"></span>
+      {% endfor %}
+    </div>
+    <div class="chart-x" aria-hidden="true">
+      {% for p in chart.labels %}<span style="left: {{ p.x }}%">{{ p.label }}</span>{% endfor %}
+    </div>
+  </div>
+  <p class="chart-unit">{{ unit }}</p>
+</figure>
+{% endmacro %}
+
+{% macro chance_columns(bars, title, team, noun='game') %}
+<figure class="chart chart-bars">
+  <figcaption class="chart-title">{{ title }}</figcaption>
+  <div class="chart-body">
+    <div class="chart-y" aria-hidden="true">
+      {% for v in [100, 50, 0] %}<span style="top: {{ 100 - v }}%">{{ v }}%</span>{% endfor %}
+    </div>
+    <div class="chart-plot">
+      {% for v in [100, 50, 0] %}<span class="grid{% if v == 50 %} grid-zero{% endif %}" style="top: {{ 100 - v }}%"></span>{% endfor %}
+      <div class="cols" style="--n: {{ bars|length }}">
+        {% for b in bars %}
+        <span class="col" tabindex="0" data-tip="{{ b.tip }}" aria-label="{{ b.tip }}">
+          <span class="col-bar col-{{ b.outcome }}" style="height: {{ b.height }}%"></span>
+        </span>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="cols cols-x" style="--n: {{ bars|length }}" aria-hidden="true">
+      {% for b in bars %}<span class="col-letter col-letter-{{ b.outcome }}">{{ b.outcome }}</span>{% endfor %}
+    </div>
+  </div>
+  <p class="chart-unit">Bar height: the model's chance of {{ team }} winning, before each {{ noun }}. Full color: won; outline: didn't win.</p>
+</figure>
+{% endmacro %}

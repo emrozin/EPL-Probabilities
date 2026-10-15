@@ -18,7 +18,7 @@
       {% for r in rows %}
       <tr>
         <td class="num rank">{{ loop.index }}</td>
-        <th scope="row"><a class="team-link" href="{{ nfl_team_url(r.team) }}">{{ r.name }}</a></th>
+        <th scope="row">{{ nfl_chip(r.team) }}<a class="team-link" href="{{ nfl_team_url(r.team) }}">{{ r.name }}</a></th>
         <td class="num {{ r.offense_class }}">{{ r.offense }}</td>
         <td class="num {{ r.defense_class }}">{{ r.defense }}</td>
         <td class="num {{ r.overall_class }}">{{ r.overall }}</td>

@@ -32,7 +32,7 @@
       <tbody>
         {% for r in rows %}
         <tr>
-          <th scope="row"><a class="team-link" href="{{ r.url }}">{{ r.team }}</a></th>
+          <th scope="row">{{ epl_chip(r.team) }}<a class="team-link" href="{{ r.url }}">{{ r.team }}</a></th>
           <td class="num pos wide-only">{{ r.position }}</td>
           <td class="num wide-only">{{ r.points }}</td>
           <td class="num pts">{{ r.expected_points }}</td>

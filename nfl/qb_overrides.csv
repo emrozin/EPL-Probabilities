@@ -1,0 +1,5 @@
+# Starting quarterbacks named by hand, for when the data can't know (e.g. a benching announced this week).
+# One line per team and game: the game (as in its page address, e.g. 2026-06-sea-den), the team, and the
+# quarterback as nflverse spells him. Example:
+# 2026-06-sea-den,SEA,Sam Darnold
+game,team,qb

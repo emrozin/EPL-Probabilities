@@ -1,6 +1,7 @@
 {% extends "base.html" %}
-{% from "nfl/macros.html" import bar, team_link, badge %}
+{% from "nfl/macros.html" import props_table, bar, team_link, badge %}
 {% block title %}{{ nfl_name(g.away) }} at {{ nfl_name(g.home) }} | NFL probabilities{% endblock %}
+{% block main_style %} class="teamed" style="{{ nfl_colors(g.home, g.away) }}"{% endblock %}
 
 {% block content %}
 <div class="match-header">
@@ -62,6 +63,7 @@
       {% if q.value %}<span class="muted">&middot; model adjustment <strong>{{ q.value }}</strong> points</span>{% endif %}
       {% if q.change %}<span class="source">not the usual starter</span>{% endif %}
       {% if not finished and not q.listed and q.name %}<span class="source">assumed: usual starter</span>{% endif %}
+      {% if q.replaced %}<span class="source">nflverse lists {{ q.replaced }}{{ ", who didn't throw a pass" if finished }}</span>{% endif %}
     </li>
     {% endfor %}
   </ul>
@@ -69,10 +71,18 @@
 </section>
 {% endif %}
 
+{% if props %}
+<section class="detail-section">
+  <h2>Likeliest player props</h2>
+  <p class="section-note">Of the common sportsbook props (passing yards from 225, rushing and receiving yards from 50, receptions from 4, and scoring a touchdown), the ones the model thinks are likeliest to hit in this game, one per player. Likely to hit isn't the same as a good bet: the sportsbook's price matters, and these aren't compared with it.</p>
+  {{ props_table(props) }}
+</section>
+{% endif %}
+
 {% if players %}
 <section class="detail-section">
   <h2>Player projections</h2>
-  <p class="section-note">Expected stats for each player{% if finished %}, with what actually happened in brackets{% else %}, with the range the actual number lands in about 80% of the time underneath{% endif %}. Built from each player's share of his team's passes, carries and targets in recent games and his latest snap count, the injury report, his efficiency (pulled toward his position's average when he has few chances), the opponent's defense, and the points the team model expects. "TD" is the chance of at least one rushing or receiving touchdown.</p>
+  <p class="section-note">Expected stats for each player{% if finished %}, with what actually happened in brackets{% else %}, with the chance of reaching a round number underneath ("38% for 60+" means a 38% chance of 60 or more){% endif %}. Built from each player's share of his team's passes, carries and targets in recent games and his latest snap count, the injury report, his efficiency (pulled toward his position's average when he has few chances), the opponent's defense, and the points the team model expects. "TD" is the chance of at least one rushing or receiving touchdown.</p>
   {% for side_team in [g.away, g.home] %}
   {% for t in players if t.team == side_team %}
   <h3>{{ nfl_name(t.team) }}</h3>
@@ -87,12 +97,12 @@
         {% set a = p.actual %}
         <tr{% if a and not a.played %} class="muted"{% endif %}>
           <th scope="row">{{ p.name }} <span class="muted">{{ p.position }}</span></th>
-          <td class="num">{% if p.qb %}{{ p.pass_yds }}{% if a %} <span class="muted">({{ a.pass_yds or 0 }})</span>{% elif p.ranges.pass_yds %}<span class="range">{{ p.ranges.pass_yds }}</span>{% endif %}{% endif %}</td>
+          <td class="num">{% if p.qb %}{{ p.pass_yds }}{% if a %} <span class="muted">({{ a.pass_yds or 0 }})</span>{% elif p.chances.pass_yds %}<span class="chance">{{ p.chances.pass_yds }}</span>{% endif %}{% endif %}</td>
           <td class="num">{% if p.qb %}{{ p.pass_tds }}{% if a %} <span class="muted">({{ a.pass_tds or 0 }})</span>{% endif %}{% endif %}</td>
           <td class="num">{% if p.qb %}{{ p.ints }}{% if a %} <span class="muted">({{ a.ints or 0 }})</span>{% endif %}{% endif %}</td>
-          <td class="num">{{ p.rush_yds }}{% if a %} <span class="muted">({{ a.rush_yds or 0 }})</span>{% elif p.ranges.rush_yds %}<span class="range">{{ p.ranges.rush_yds }}</span>{% endif %}</td>
-          <td class="num">{% if not p.qb %}{{ p.receptions }}{% if a %} <span class="muted">({{ a.receptions or 0 }})</span>{% elif p.ranges.receptions %}<span class="range">{{ p.ranges.receptions }}</span>{% endif %}{% endif %}</td>
-          <td class="num">{% if not p.qb %}{{ p.rec_yds }}{% if a %} <span class="muted">({{ a.rec_yds or 0 }})</span>{% elif p.ranges.rec_yds %}<span class="range">{{ p.ranges.rec_yds }}</span>{% endif %}{% endif %}</td>
+          <td class="num">{{ p.rush_yds }}{% if a %} <span class="muted">({{ a.rush_yds or 0 }})</span>{% elif p.chances.rush_yds %}<span class="chance">{{ p.chances.rush_yds }}</span>{% endif %}</td>
+          <td class="num">{% if not p.qb %}{{ p.receptions }}{% if a %} <span class="muted">({{ a.receptions or 0 }})</span>{% elif p.chances.receptions %}<span class="chance">{{ p.chances.receptions }}</span>{% endif %}{% endif %}</td>
+          <td class="num">{% if not p.qb %}{{ p.rec_yds }}{% if a %} <span class="muted">({{ a.rec_yds or 0 }})</span>{% elif p.chances.rec_yds %}<span class="chance">{{ p.chances.rec_yds }}</span>{% endif %}{% endif %}</td>
           <td class="num">{{ p.anytime_td }}{% if a and a.scored is not none %} <span class="muted">({{ 'yes' if a.scored else 'no' }})</span>{% endif %}</td>
         </tr>
         {% endfor %}

@@ -45,7 +45,7 @@
       {% endfor %}
     </tbody>
   </table>
-  <p class="note">Offense and defense ratings alone did no better than simple Elo ratings on the held-out seasons. Quarterbacks made the real difference: first a simple flag for teams not starting their usual quarterback, then individual ratings for every quarterback, which helped most in the first four weeks of a season (when teams have new starters). The model now captures 75% of the market's edge over a coin flip, up from 65% for Elo. Rest days, travel, domes and weather were also tested and didn't improve the forecasts.</p>
+  <p class="note">Offense and defense ratings alone did no better than simple Elo ratings on the held-out seasons. Quarterbacks made the real difference: first a simple flag for teams not starting their usual quarterback, then individual ratings for every quarterback, which helped most in the first four weeks of a season (when teams have new starters). Checking nflverse's listed starters against the box scores fixed 56 games where the listed quarterback never threw a pass. The model now captures 75% of the market's edge over a coin flip, up from 65% for Elo. Rest days, travel, domes and weather were also tested and didn't improve the forecasts.</p>
 </section>
 
 {% if player_accuracy %}
@@ -60,7 +60,7 @@
       {% endfor %}
     </tbody>
   </table>
-  <p class="note">The projections beat both benchmarks for every stat. Passing yards improved the most (about 12% smaller misses than the season average), helped by knowing which quarterback is starting and how good the opposing pass defense is. Using the weekly injury reports cut the misses for rushing yards, receptions and receiving yards by another 4&ndash;5%, and snap counts by about 1% more. Defense by position and how far downfield a receiver's targets are thrown were also tested and didn't help. The ranges on game pages (where the actual number lands about 80% of the time) held up on these seasons: 79&ndash;86% of results fell inside them. There are no free historical betting lines for player stats, so unlike the game forecasts these can't be compared with the market.</p>
+  <p class="note">The projections beat both benchmarks for every stat. Passing yards improved the most (about 12% smaller misses than the season average), helped by knowing which quarterback is starting and how good the opposing pass defense is. Using the weekly injury reports cut the misses for rushing yards, receptions and receiving yards by another 4&ndash;5%, and snap counts by about 1% more. Defense by position and how far downfield a receiver's targets are thrown were also tested and didn't help. The chances on game pages (such as &ldquo;38% for 60+&rdquo; receiving yards) come from how far actual results landed from the projections in 2012&ndash;2017, and they held up on these seasons: when the page would have said 40&ndash;50%, it happened 44% of the time, and 50&ndash;65% happened 55% of the time. The &ldquo;likeliest player props&rdquo; lists held up too: the ten likeliest each day had an average chance of 64% and 66% of them hit (4,838 props), and the five likeliest per game 65% and 65%. There are no free historical betting lines for player stats, so unlike the game forecasts these can't be compared with the market.</p>
 </section>
 {% endif %}
 
