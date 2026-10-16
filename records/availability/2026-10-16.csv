@@ -1,6 +1,6 @@
 player_id,name,team,position,status,chance_this_round,chance_next_round,news,news_added,minutes,starts,expected_goals,expected_assists,price
 10,Benjamin White,Arsenal,DEF,available,100.0,100.0,,2026-09-20T19:30:08.247780Z,377,5,0.18,0.46,5.4
-11,Cristhian Mosquera,Arsenal,DEF,available,100.0,100.0,,2026-09-04T14:00:08.080310Z,168,2,0.00,0.01,5.3
+11,Cristhian Mosquera,Arsenal,DEF,available,100.0,100.0,,2026-09-04T14:00:08.080310Z,168,2,0.00,0.01,5.2
 31,Ezri Konsa Ngoyo,Arsenal,DEF,available,75.0,100.0,,2026-10-05T09:30:09.853316Z,371,4,0.23,0.02,4.6
 4,Gabriel dos Santos Magalhães,Arsenal,DEF,available,,,,,540,6,0.51,0.21,7.9
 5,Jurriën Timber,Arsenal,DEF,available,100.0,100.0,,2026-07-23T12:01:23.272929Z,131,1,0.00,0.08,6.5
@@ -48,7 +48,7 @@ player_id,name,team,position,status,chance_this_round,chance_next_round,news,new
 29,Marco Bizot,Aston Villa,GK,available,75.0,100.0,,2026-09-17T07:30:09.058151Z,90,1,0.00,0.00,4.5
 597,Zion Suzuki,Aston Villa,GK,available,,,,,450,5,0.00,0.01,5.0
 160,Alejandro Garnacho Ferreyra,Aston Villa,MID,available,,,,,31,0,0.00,0.00,5.7
-52,Alysson Edward Franco da Rocha dos Santos,Aston Villa,MID,available,75.0,100.0,,2026-09-19T11:30:09.355376Z,91,0,0.06,0.00,5.0
+52,Alysson Edward Franco da Rocha dos Santos,Aston Villa,MID,available,75.0,100.0,,2026-09-19T11:30:09.355376Z,91,0,0.06,0.00,4.9
 48,Amadou Onana,Aston Villa,MID,injured,0.0,0.0,Knee injury - Unknown return date,2026-07-23T12:01:23.352497Z,0,0,0.00,0.00,4.9
 47,Boubacar Kamara,Aston Villa,MID,available,100.0,100.0,,2026-07-23T12:01:23.337269Z,533,6,0.17,0.24,5.0
 50,Bradley Burrowes,Aston Villa,MID,available,,,,,0,0,0.00,0.00,4.4
@@ -75,7 +75,7 @@ player_id,name,team,position,status,chance_this_round,chance_next_round,news,new
 63,Veljko Milosavljevic,Bournemouth,DEF,injured,0.0,0.0,Thigh injury - Unknown return date,2026-08-06T10:00:10.456051Z,0,0,0.00,0.00,4.9
 608,Daniel Jebbison,Bournemouth,FWD,available,,,,,31,0,0.10,0.00,5.0
 80,Enes Ünal,Bournemouth,FWD,unavailable,0.0,0.0,Has joined Getafe permanently,2026-08-14T14:14:21.881112Z,0,0,0.00,0.00,5.5
-79,Francisco Evanilson de Lima Barbosa,Bournemouth,FWD,available,,,,,514,6,1.48,0.62,6.0
+79,Francisco Evanilson de Lima Barbosa,Bournemouth,FWD,available,,,,,514,6,1.48,0.62,6.1
 81,Álvaro Rodríguez,Bournemouth,FWD,available,100.0,100.0,,2026-08-15T16:30:07.054142Z,28,0,0.02,0.03,6.0
 58,Fraser Forster,Bournemouth,GK,available,,,,,0,0,0.00,0.00,4.0
 615,Michele Di Gregorio,Bournemouth,GK,available,,,,,0,0,0.00,0.00,4.5
@@ -86,7 +86,7 @@ player_id,name,team,position,status,chance_this_round,chance_next_round,news,new
 77,Amine Adli,Bournemouth,MID,available,0.0,100.0,,2026-08-15T16:00:07.590566Z,0,0,0.00,0.00,4.8
 72,Ben Gannon-Doak,Bournemouth,MID,available,,,,,57,0,0.12,0.10,4.8
 74,David Brooks,Bournemouth,MID,available,100.0,100.0,,2026-08-15T16:30:07.037929Z,90,1,0.00,0.08,5.0
-78,Junior Kroupi,Bournemouth,MID,injured,0.0,0.0,Foot injury - Expected back 7 Nov,2026-07-29T17:30:09.796802Z,0,0,0.00,0.00,7.4
+78,Junior Kroupi,Bournemouth,MID,injured,0.0,0.0,Foot injury - Expected back 7 Nov,2026-07-29T17:30:09.796802Z,0,0,0.00,0.00,7.3
 70,Justin Kluivert,Bournemouth,MID,available,0.0,100.0,,2026-09-20T15:30:09.074071Z,294,4,0.99,0.08,5.9
 71,Lewis Cook,Bournemouth,MID,available,,,,,197,2,0.00,0.01,5.0
 68,Marcus Tavernier,Bournemouth,MID,available,,,,,496,6,1.70,0.96,6.1
@@ -108,7 +108,7 @@ player_id,name,team,position,status,chance_this_round,chance_next_round,news,new
 107,Kaye Furo,Brentford,FWD,injured,0.0,0.0,Unspecified injury - Unknown return date,2026-09-14T14:00:09.985723Z,0,0,0.00,0.00,4.5
 82,Caoimhín Kelleher,Brentford,GK,available,,,,,540,6,0.00,0.01,5.0
 661,Ellery Balcombe,Brentford,GK,available,,,,,0,0,0.00,0.00,4.0
-83,Hákon Rafn Valdimarsson,Brentford,GK,available,,,,,0,0,0.00,0.00,4.5
+83,Hákon Rafn Valdimarsson,Brentford,GK,available,,,,,0,0,0.00,0.00,4.4
 99,Antoni Milambo,Brentford,MID,injured,0.0,0.0,Knee injury - Unknown return date,2026-07-23T12:01:23.384798Z,0,0,0.00,0.00,5.0
 95,Dango Ouattara,Brentford,MID,available,,,,,202,2,0.16,0.39,6.2
 100,Fábio Freitas Gouveia Carvalho,Brentford,MID,available,100.0,100.0,,2026-08-18T13:58:17.442072Z,3,0,0.43,0.00,5.0
@@ -117,9 +117,9 @@ player_id,name,team,position,status,chance_this_round,chance_next_round,news,new
 103,Josh Dasilva,Brentford,MID,injured,0.0,0.0,Hamstring injury - Unknown return date,2026-09-04T13:30:08.371955Z,0,0,0.00,0.00,4.8
 86,Keane Lewis-Potter,Brentford,MID,available,,,,,472,6,1.25,0.83,5.5
 94,Kevin Schade,Brentford,MID,doubtful,,75.0,Shoulder injury - 75% chance of playing,2026-10-10T16:30:08.848962Z,498,6,1.93,0.33,6.2
-565,Mamadou Sangaré,Brentford,MID,available,,,,,359,4,0.41,0.68,5.6
+565,Mamadou Sangaré,Brentford,MID,available,,,,,359,4,0.41,0.68,5.5
 97,Mathias Jensen,Brentford,MID,available,0.0,100.0,,2026-08-30T12:30:08.176795Z,89,1,0.08,0.40,5.4
-96,Mikkel Damsgaard,Brentford,MID,doubtful,75.0,75.0,Unspecified injury - 75% chance of playing,2026-10-03T19:30:08.141728Z,283,3,0.17,0.73,5.4
+96,Mikkel Damsgaard,Brentford,MID,doubtful,75.0,75.0,Unspecified injury - 75% chance of playing,2026-10-03T19:30:08.141728Z,283,3,0.17,0.73,5.3
 98,Vitaly Janelt,Brentford,MID,available,,,,,540,6,0.53,0.49,5.0
 102,Yehor Yarmoliuk,Brentford,MID,available,,,,,282,3,0.19,0.32,4.8
 117,Diego Coppola,Brighton,DEF,available,,,,,0,0,0.00,0.00,4.5
@@ -130,7 +130,7 @@ player_id,name,team,position,status,chance_this_round,chance_next_round,news,new
 116,Lewis Dunk,Brighton,DEF,available,100.0,100.0,,2026-09-22T09:30:09.629652Z,390,4,0.03,0.09,4.5
 504,Luka Vušković,Brighton,DEF,available,,,,,527,6,0.73,0.08,5.1
 130,Mats Wieffer,Brighton,DEF,injured,0.0,0.0,Knee injury - Unknown return date,2026-09-04T09:30:08.612904Z,156,2,0.12,0.13,4.9
-115,Maxim De Cuyper,Brighton,DEF,available,,,,,490,6,1.80,0.67,5.1
+115,Maxim De Cuyper,Brighton,DEF,available,,,,,490,6,1.80,0.67,5.2
 120,Michael Svoboda,Brighton,DEF,available,,,,,4,0,0.00,0.00,5.0
 114,Olivier Boscagli,Brighton,DEF,available,,,,,504,6,0.07,0.59,4.5
 328,Pascal Struijk,Brighton,DEF,doubtful,75.0,75.0,Hamstring injury - 75% chance of playing,2026-10-16T17:30:09.428175Z,154,2,0.31,0.01,4.9
@@ -153,7 +153,7 @@ player_id,name,team,position,status,chance_this_round,chance_next_round,news,new
 126,Matt O'Riley,Brighton,MID,available,,,,,10,0,0.28,0.01,5.4
 121,Mitoma Kaoru,Brighton,MID,injured,0.0,0.0,Hamstring injury - Expected back 18 Oct,2026-07-24T18:30:10.661894Z,0,0,0.00,0.00,5.9
 134,Nehemiah Oriola,Brighton,MID,available,,,,,0,0,0.00,0.00,4.4
-124,Pascal Groß,Brighton,MID,available,,,,,540,6,2.02,1.05,6.0
+124,Pascal Groß,Brighton,MID,available,,,,,540,6,2.02,1.05,6.1
 133,Tom Watson,Brighton,MID,unavailable,0.0,0.0,Has joined Leicester City on loan for the rest of the season,2026-08-03T14:05:44.459483Z,0,0,0.00,0.00,5.0
 122,Yankuba Minteh,Brighton,MID,injured,0.0,0.0,Leg injury - Expected back 28 Nov,2026-08-14T18:00:06.418033Z,0,0,0.00,0.00,5.8
 129,Yasin Ayari,Brighton,MID,available,100.0,100.0,,2026-08-30T18:00:07.935334Z,420,5,0.82,0.19,5.4
@@ -198,7 +198,7 @@ player_id,name,team,position,status,chance_this_round,chance_next_round,news,new
 91,Ethan Pinnock,Coventry City,DEF,available,,,,,372,4,0.12,0.00,4.5
 178,Jake Bidwell,Coventry City,DEF,available,,,,,0,0,0.00,0.00,4.0
 176,Jay Dasilva,Coventry City,DEF,available,,,,,534,6,0.50,0.54,4.0
-179,Joel Latibeaudiere,Coventry City,DEF,available,,,,,1,0,0.00,0.00,4.0
+179,Joel Latibeaudiere,Coventry City,DEF,available,,,,,1,0,0.00,0.00,3.9
 177,Kaine Kesler-Hayden,Coventry City,DEF,doubtful,50.0,75.0,Hamstring injury - 75% chance of playing,2026-08-27T14:56:28.704361Z,0,0,0.00,0.00,3.9
 174,Liam Kitching,Coventry City,DEF,unavailable,0.0,0.0,Has joined Sheffield United on loan for the rest of the season,2026-09-02T16:21:03.612394Z,0,0,0.00,0.00,4.0
 180,Luke Woolfenden,Coventry City,DEF,injured,0.0,0.0,Knee injury - Unknown return date,2026-08-27T14:56:28.718566Z,0,0,0.00,0.00,3.9
@@ -326,7 +326,7 @@ player_id,name,team,position,status,chance_this_round,chance_next_round,news,new
 277,John Egan,Hull City,DEF,available,,,,,527,6,0.09,0.16,4.1
 280,Lewie Coyle,Hull City,DEF,available,100.0,100.0,,2026-08-29T16:30:08.151841Z,438,6,0.13,0.07,4.0
 585,Lucas Herrington,Hull City,DEF,available,,,,,197,1,0.02,0.04,4.0
-556,Matt Targett,Hull City,DEF,injured,0.0,0.0,Ankle injury - Unknown return date,2026-09-17T14:00:26.419938Z,5,0,0.00,0.00,4.0
+556,Matt Targett,Hull City,DEF,injured,0.0,0.0,Ankle injury - Unknown return date,2026-09-17T14:00:26.419938Z,5,0,0.00,0.00,3.9
 283,Matty Jacob,Hull City,DEF,unavailable,0.0,0.0,Has joined Newport County on loan until January,2026-08-02T09:00:11.038361Z,0,0,0.00,0.00,4.0
 586,Nobel Mendy,Hull City,DEF,injured,100.0,0.0,Groin injury - Expected back 31 Oct,2026-10-16T12:30:09.976274Z,339,5,0.62,0.00,4.1
 285,Paddy McNair,Hull City,DEF,available,100.0,100.0,,2026-09-09T13:30:08.327907Z,26,0,0.00,0.00,4.0
@@ -394,7 +394,7 @@ player_id,name,team,position,status,chance_this_round,chance_next_round,news,new
 318,Jaden Philogene,Ipswich Town,MID,available,100.0,100.0,,2026-08-25T11:30:07.532993Z,114,1,0.11,0.03,5.4
 591,Julio Enciso,Ipswich Town,MID,available,100.0,100.0,,2026-08-22T18:00:07.551930Z,483,6,1.33,1.61,5.5
 323,Kasey McAteer,Ipswich Town,MID,available,,,,,42,0,0.05,0.00,4.4
-309,Marcelino Núñez,Ipswich Town,MID,available,,,,,140,2,0.03,0.05,4.9
+309,Marcelino Núñez,Ipswich Town,MID,available,,,,,140,2,0.03,0.05,4.8
 319,Sam Szmodics,Ipswich Town,MID,unavailable,0.0,0.0,Has joined Derby County on loan for the rest of the season,2026-08-17T13:51:41.713979Z,0,0,0.00,0.00,5.0
 267,Saša Lukić,Ipswich Town,MID,available,,,,,490,6,0.02,0.46,4.9
 311,Wes Burns,Ipswich Town,MID,unavailable,0.0,0.0,Has joined Leicester City permanently,2026-08-10T14:02:47.597478Z,0,0,0.00,0.00,5.0
@@ -432,7 +432,7 @@ player_id,name,team,position,status,chance_this_round,chance_next_round,news,new
 365,Calvin Ramsay,Liverpool,DEF,unavailable,0.0,0.0,Has joined St Mirren on loan for the rest of the season,2026-08-26T14:05:26.748768Z,0,0,0.00,0.00,4.0
 360,Conor Bradley,Liverpool,DEF,injured,0.0,0.0,Knee injury - Unknown return date,2026-07-23T12:01:23.565711Z,0,0,0.00,0.00,4.9
 363,Giovanni Leoni,Liverpool,DEF,injured,0.0,0.0,Knee injury - Unknown return date,2026-07-23T12:01:23.596909Z,0,0,0.00,0.00,4.0
-357,Jeremie Frimpong,Liverpool,DEF,available,,,,,193,2,0.01,0.23,5.3
+357,Jeremie Frimpong,Liverpool,DEF,available,,,,,193,2,0.01,0.23,5.2
 362,Jeremy Jacquet,Liverpool,DEF,available,100.0,100.0,,2026-10-06T00:30:10.323830Z,502,6,0.27,0.14,5.0
 359,Joe Gomez,Liverpool,DEF,available,100.0,100.0,,2026-07-26T08:30:10.078473Z,2,0,0.00,0.00,4.9
 364,Kostas Tsimikas,Liverpool,DEF,available,,,,,64,1,0.04,0.02,4.9
@@ -453,10 +453,10 @@ player_id,name,team,position,status,chance_this_round,chance_next_round,news,new
 627,Bradley Barcola,Liverpool,MID,available,,,,,255,3,0.31,0.15,8.0
 367,Cody Gakpo,Liverpool,MID,doubtful,0.0,25.0,Ankle injury - 25% chance of playing,2026-09-27T21:30:07.786183Z,370,4,0.64,1.71,7.1
 373,Curtis Jones,Liverpool,MID,unavailable,0.0,0.0,Has joined Internazionale permanently,2026-08-16T18:30:07.426408Z,0,0,0.00,0.00,5.5
-368,Dominik Szoboszlai,Liverpool,MID,doubtful,,25.0,Hamstring injury - 25% chance of playing,2026-10-11T15:00:09.494018Z,440,5,1.42,0.82,6.9
+368,Dominik Szoboszlai,Liverpool,MID,doubtful,,25.0,Hamstring injury - 25% chance of playing,2026-10-11T15:00:09.494018Z,440,5,1.42,0.82,6.8
 374,Endo Wataru,Liverpool,MID,available,100.0,100.0,,2026-07-23T12:01:23.612529Z,0,0,0.00,0.00,4.9
 370,Federico Chiesa,Liverpool,MID,available,25.0,100.0,,2026-08-27T13:30:07.598926Z,2,0,0.00,0.00,5.3
-366,Florian Wirtz,Liverpool,MID,available,,,,,467,6,1.15,0.60,7.3
+366,Florian Wirtz,Liverpool,MID,available,,,,,467,6,1.15,0.60,7.2
 383,Harvey Elliott,Liverpool,MID,unavailable,0.0,0.0,Has joined Valencia on loan for the rest of the season,2026-09-02T16:05:49.104326Z,0,0,0.00,0.00,5.4
 378,James McConnell,Liverpool,MID,available,,,,,0,0,0.00,0.00,4.4
 381,Lewis Koumas,Liverpool,MID,available,,,,,96,1,0.37,0.01,5.0
@@ -476,7 +476,7 @@ player_id,name,team,position,status,chance_this_round,chance_next_round,news,new
 395,Rico Lewis,Man City,DEF,available,,,,,56,1,0.17,0.02,4.3
 390,Rúben dos Santos Gato Alves Dias,Man City,DEF,available,,,,,540,6,0.29,0.75,5.5
 396,Vitor de Oliveira Nunes dos Reis,Man City,DEF,available,,,,,1,0,0.00,0.00,4.4
-411,Erling Haaland,Man City,FWD,available,,,,,529,6,4.82,0.54,15.6
+411,Erling Haaland,Man City,FWD,available,,,,,529,6,4.82,0.54,15.7
 587,Gerónimo Rulli,Man City,GK,available,,,,,0,0,0.00,0.00,4.9
 384,Gianluigi Donnarumma,Man City,GK,available,,,,,540,6,0.00,0.00,5.5
 386,Marcus Bettinelli,Man City,GK,available,,,,,0,0,0.00,0.00,4.4
@@ -518,8 +518,8 @@ player_id,name,team,position,status,chance_this_round,chance_next_round,news,new
 431,Amad Diallo,Man Utd,MID,available,0.0,100.0,,2026-08-22T11:00:08.617283Z,58,1,0.06,0.03,5.7
 162,Andrey Nascimento dos Santos,Man Utd,MID,available,,,,,82,1,0.00,0.24,4.7
 437,Bendito Mantato,Man Utd,MID,available,,,,,0,0,0.00,0.00,4.4
-426,Bruno Borges Fernandes,Man Utd,MID,available,,,,,540,6,2.58,1.46,11.9
-427,Bryan Mbeumo,Man Utd,MID,available,,,,,540,6,3.31,0.90,7.9
+426,Bruno Borges Fernandes,Man Utd,MID,available,,,,,540,6,2.58,1.46,11.8
+427,Bryan Mbeumo,Man Utd,MID,available,,,,,540,6,3.31,0.90,7.8
 131,Carlos Baleba,Man Utd,MID,available,100.0,100.0,,2026-08-06T16:00:10.997714Z,31,0,0.06,0.01,4.9
 434,Jack Fletcher,Man Utd,MID,available,,,,,0,0,0.00,0.00,4.9
 432,Kobbie Mainoo,Man Utd,MID,doubtful,75.0,75.0,Unspecified injury - 75% chance of playing,2026-10-12T21:30:09.006287Z,444,5,0.30,0.55,5.5
@@ -531,7 +531,7 @@ player_id,name,team,position,status,chance_this_round,chance_next_round,news,new
 435,Shea Lacey,Man Utd,MID,available,,,,,10,0,0.00,0.00,4.9
 436,Toby Collyer,Man Utd,MID,unavailable,0.0,0.0,Has joined West Brom permanently,2026-09-01T13:16:48.584385Z,0,0,0.00,0.00,5.0
 438,Tyler Fletcher,Man Utd,MID,available,,,,,0,0,0.00,0.00,4.4
-43,Youri Tielemans,Man Utd,MID,available,100.0,100.0,,2026-07-23T12:01:23.321726Z,460,6,0.65,0.66,5.8
+43,Youri Tielemans,Man Utd,MID,available,100.0,100.0,,2026-07-23T12:01:23.321726Z,460,6,0.65,0.66,5.7
 451,Alex Murphy,Newcastle,DEF,unavailable,0.0,0.0,Has joined FC Kaiserslautern on loan for the rest of the season,2026-08-12T14:05:29.224600Z,0,0,0.00,0.00,4.0
 593,Amar Dedic,Newcastle,DEF,available,50.0,100.0,,2026-09-17T14:30:09.823731Z,358,4,0.16,0.10,4.5
 448,Dan Burn,Newcastle,DEF,available,0.0,100.0,,2026-08-23T18:00:08.367241Z,1,0,0.00,0.00,4.8
@@ -547,13 +547,13 @@ player_id,name,team,position,status,chance_this_round,chance_next_round,news,new
 466,Sean Neave,Newcastle,FWD,unavailable,0.0,0.0,Has joined Wolves on loan for the rest of the season,2026-09-04T12:37:43.515176Z,0,0,0.00,0.00,4.5
 664,Vakhtang Salia,Newcastle,FWD,available,,,,,0,0,0.00,0.00,4.5
 465,William Osula,Newcastle,FWD,available,50.0,100.0,,2026-08-25T19:00:08.004915Z,67,1,0.18,0.14,5.8
-464,Yoane Wissa,Newcastle,FWD,available,,,,,518,6,2.50,0.07,6.3
+464,Yoane Wissa,Newcastle,FWD,available,,,,,518,6,2.50,0.07,6.2
 444,Ewen Jaouen,Newcastle,GK,injured,0.0,0.0,Hamstring injury - Unknown return date,2026-09-10T16:00:09.127466Z,0,0,0.00,0.00,4.4
 567,Lukás Hornícek,Newcastle,GK,available,,,,,540,6,0.00,0.00,5.0
 443,Mark Gillespie,Newcastle,GK,available,,,,,0,0,0.00,0.00,4.5
 442,Nick Pope,Newcastle,GK,available,,,,,0,0,0.00,0.00,4.9
 559,Aladji Bamba,Newcastle,MID,available,,,,,27,0,0.00,0.00,4.8
-454,Anthony Elanga,Newcastle,MID,injured,0.0,0.0,Unspecified injury - Expected back 25 Oct,2026-09-14T20:00:09.505598Z,232,3,0.42,0.34,6.1
+454,Anthony Elanga,Newcastle,MID,injured,0.0,0.0,Unspecified injury - Expected back 25 Oct,2026-09-14T20:00:09.505598Z,232,3,0.42,0.34,6.0
 461,Bazoumana Touré,Newcastle,MID,doubtful,,75.0,Unspecified injury - 75% chance of playing,2026-10-12T21:30:09.043536Z,81,0,0.37,0.08,5.8
 453,Harvey Barnes,Newcastle,MID,available,,,,,540,6,0.97,0.83,6.1
 457,Jacob Murphy,Newcastle,MID,available,,,,,239,3,0.29,0.56,5.9
@@ -565,25 +565,25 @@ player_id,name,team,position,status,chance_this_round,chance_next_round,news,new
 659,Mason Miley,Newcastle,MID,available,,,,,0,0,0.00,0.00,4.5
 665,Michael Mills,Newcastle,MID,available,,,,,0,0,0.00,0.00,4.5
 405,Nico González Iglesias,Newcastle,MID,available,100.0,100.0,,2026-09-14T21:30:07.343728Z,254,4,0.00,0.43,5.5
-462,Sean Steur,Newcastle,MID,available,,,,,223,2,0.00,0.06,4.9
+462,Sean Steur,Newcastle,MID,available,,,,,223,2,0.00,0.06,4.8
 201,Daniel Muñoz Mejía,Nott'm Forest,DEF,available,,,,,347,4,1.01,0.43,5.3
 470,Felipe Rodrigues da Silva,Nott'm Forest,DEF,unavailable,0.0,0.0,Has joined West Ham on loan for the rest of the season,2026-09-02T16:19:54.503286Z,0,0,0.00,0.00,5.0
-474,Jair Paula da Cunha Filho,Nott'm Forest,DEF,available,100.0,100.0,,2026-09-12T14:00:09.724349Z,360,4,0.05,0.02,4.5
+474,Jair Paula da Cunha Filho,Nott'm Forest,DEF,available,100.0,100.0,,2026-09-12T14:00:09.724349Z,360,4,0.05,0.02,4.4
 478,Luca Netz,Nott'm Forest,DEF,available,,,,,27,0,0.00,0.02,4.4
 472,Murillo Costa dos Santos,Nott'm Forest,DEF,available,100.0,100.0,,2026-07-23T12:01:23.801183Z,539,6,0.70,0.38,5.5
 469,Neco Williams,Nott'm Forest,DEF,available,50.0,100.0,,2026-10-09T14:30:11.466887Z,540,6,0.58,0.90,5.0
 475,Nicolò Savona,Nott'm Forest,DEF,injured,0.0,0.0,Knee injury - Unknown return date,2026-07-23T12:01:23.816304Z,0,0,0.00,0.00,4.5
 471,Nikola Milenković,Nott'm Forest,DEF,doubtful,0.0,75.0,Knee injury - 75% chance of playing,2026-09-12T14:00:09.705107Z,270,3,0.11,0.03,5.4
 473,Ola Aina,Nott'm Forest,DEF,available,,,,,388,5,0.06,0.54,4.4
-476,Omar Richards,Nott'm Forest,DEF,available,,,,,0,0,0.00,0.00,4.0
+476,Omar Richards,Nott'm Forest,DEF,available,,,,,0,0,0.00,0.00,3.9
 581,Ousmane Diomande,Nott'm Forest,DEF,available,,,,,253,3,0.23,0.02,5.4
 479,Tyler Bindon,Nott'm Forest,DEF,unavailable,0.0,0.0,Has joined Charlton Athletic on loan for the rest of the season,2026-09-01T13:16:05.383880Z,0,0,0.00,0.00,4.0
 477,Zach Abbott,Nott'm Forest,DEF,unavailable,0.0,0.0,Has joined Southampton on loan for the rest of the season,2026-09-02T16:19:54.536676Z,0,0,0.00,0.00,4.0
 493,Arnaud Kalimuendo,Nott'm Forest,FWD,available,,,,,8,0,0.00,0.00,5.4
 490,Chris Wood,Nott'm Forest,FWD,available,,,,,80,0,0.55,0.01,5.8
 491,Igor Jesus Maciel da Cruz,Nott'm Forest,FWD,injured,0.0,0.0,Calf injury - Unknown return date,2026-10-09T14:30:11.491800Z,257,2,1.25,0.08,5.7
-167,Liam Delap,Nott'm Forest,FWD,available,,,,,348,4,1.90,0.41,5.6
-468,John Victor Maciel Furtado,Nott'm Forest,GK,available,,,,,0,0,0.00,0.00,4.5
+167,Liam Delap,Nott'm Forest,FWD,available,,,,,348,4,1.90,0.41,5.5
+468,John Victor Maciel Furtado,Nott'm Forest,GK,available,,,,,0,0,0.00,0.00,4.4
 467,Matz Sels,Nott'm Forest,GK,available,,,,,540,6,0.00,0.01,5.0
 590,Steven Benda,Nott'm Forest,GK,available,,,,,0,0,0.00,0.00,4.5
 482,Callum Hudson-Odoi,Nott'm Forest,MID,available,100.0,100.0,,2026-07-23T12:01:23.832709Z,19,0,0.00,0.02,5.8
@@ -622,7 +622,7 @@ player_id,name,team,position,status,chance_this_round,chance_next_round,news,new
 524,Callum Olusesi,Spurs,MID,available,,,,,0,0,0.00,0.00,4.4
 519,Conor Gallagher,Spurs,MID,available,,,,,207,3,0.84,0.15,5.3
 521,Dejan Kulusevski,Spurs,MID,injured,0.0,0.0,Knee injury - Unknown return date,2026-07-23T12:01:23.895175Z,0,0,0.00,0.00,6.5
-515,James Maddison,Spurs,MID,available,100.0,100.0,,2026-08-25T14:30:07.623508Z,75,0,0.06,0.05,6.3
+515,James Maddison,Spurs,MID,available,100.0,100.0,,2026-08-25T14:30:07.623508Z,75,0,0.06,0.05,6.2
 601,Luca Williams-Barnett,Spurs,MID,available,,,,,0,0,0.00,0.00,4.5
 520,Lucas Bergvall,Spurs,MID,available,,,,,143,2,0.12,0.29,5.3
 525,Mateus Fernandes,Spurs,MID,available,,,,,250,3,0.19,0.28,5.7
