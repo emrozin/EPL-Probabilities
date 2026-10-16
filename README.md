@@ -1,4 +1,4 @@
-# Sports Probabilities: Premier League and NFL
+# Sports Probabilities: Premier League, NFL and college football
 
 Statistical models that estimate win probabilities for English Premier League matches and NFL games, evaluated honestly against the sharpest benchmark available: betting-market odds. Predictions for upcoming games are published to this repository before kickoff, so each model's live track record can be checked by anyone. Both sports share one database, one automated update and one website, with a sport menu.
 
@@ -113,6 +113,10 @@ Data: every game since 1999 from [nflverse](https://github.com/nflverse/nfldata)
 
 Offense and defense ratings alone did no better than Elo on the held-out seasons, despite looking better on the tuning seasons. Quarterbacks made the real difference. A simple flag for teams not starting their usual quarterback came first (the model had been overrating those teams by about two points); individual quarterback ratings then replaced it, helping most in the first four weeks of a season, when teams have new starters (held-out log loss 0.6493 to 0.6458 in weeks 1-4).
 
+**Playoff odds** (`nfl/season.py`). The rest of the season is played out 10,000 times: every remaining game gets a random result from the model (expected margin plus the usual game-to-game spread), each simulated season shifts every team's rating by a random amount (3.5 points; ratings are estimates, and without this the odds are overconfident), and division winners and seeds follow the main NFL tiebreakers (head-to-head, division or conference record, point differential). Then the playoffs are simulated with the 7-team format (6 before 2020). Tested after weeks 4, 8 and 12 of each season: on the held-out 2018-2025 seasons (768 team-seasons) the playoff chances scored a log loss of 0.403 (0.416 without the rating shift, 0.681 for a flat league-wide rate) and are calibrated: teams given 20-40% made the playoffs 35% of the time, 40-60% 52%, 60-80% 67%. Odds are saved to `records/nfl_season_odds.csv` on every update, so each team page charts its playoff chance through the season.
+
+**Blending with the market** (`blend.py`, `nfl/blend.py`). The model and the closing moneyline were combined on the log-odds scale, with the weight chosen on 2010-2017 (20% model). On the held-out seasons the blend scored 0.6104, worse than the market alone (0.6089), and lost in 6 of 8 seasons: the closing line already contains what the model knows. So the site doesn't show an NFL blend, and the backtest page reports the result. (Closing odds are the sharpest; a live blend would use earlier odds, which can't be tested with nflverse's single line per game.) The same test for the Premier League is `python -m epl.blend`; the site shows a blend only if it beats the market on the held-out seasons.
+
 **What didn't help** (`nfl/experiments.py`): rest days (byes, short weeks), travel across time zones, domes, weather, and counting last season's games less all scored the same or worse on the tuning seasons, so none are in the model. Weather also can't be used live, since nflverse records it only after a game. Learning from **EPA** as well as the score, the NFL's equivalent of the xG blend that helped the Premier League model most, made win predictions worse at every weight tried (it slightly improved total points): once quarterbacks are rated, the score already carries most of the signal.
 
 **Player projections.** Passing, rushing and receiving yards, touchdowns and receptions for every player in upcoming games, from (1) the team's recent passing and running volume, (2) each player's recent share of targets and carries, nudged by his latest snap count (the listed starting quarterback throws the passes), (3) the weekly injury report (Out and Doubtful players aren't projected, Questionable players get a slightly smaller role, players back from injury return), (4) his efficiency pulled toward his position's average, adjusted for the opposing defense, and (5) touchdowns scaled by the team model's expected points. Game pages also show the chance of reaching a round number near each projection (for example "38% for 60+" receiving yards). Tuned on 2012-2017; average miss per player-game on the held-out 2018-2025 seasons (about 35,000 player-games):
@@ -128,6 +132,22 @@ Offense and defense ratings alone did no better than Elo on the held-out seasons
 Each addition was tested with a measure that counts every player who was projected or played (`nfl/player_experiments.py`), so a version can't look better by projecting fewer players. Injury reports cut misses by 4-5% for rushing yards, receptions and receiving yards on the held-out seasons, and snap counts by about 1% more. Not kept: redistributing an injured player's share to teammates, defense by position, air yards (depth of target), and adjusting passing volume for the expected score. The first version of the injury rules looked better than it was because it was scored on a different set of players, and the fair comparison caught it: players who drop off the injury report are often on injured reserve, not returning. The chances of reaching those round numbers are well calibrated on the held-out seasons (predicted 44% happened 44% of the time, predicted 56% happened 55%). There are no free historical betting lines for player stats, so these are compared with simple benchmarks rather than the market. Projections are saved before kickoff to `records/nfl_player_projections.csv`, and the website's track record compares them with what happened and with the benchmarks.
 
 **Likeliest player props.** For the common sportsbook props (passing yards from 225, rushing and receiving yards from 50, receptions from 4, and scoring a touchdown), the site lists the likeliest to hit in each game and the ten likeliest each day, one per player, and the track record counts how many hit. On the held-out seasons the ten likeliest each day were given 64% on average and 66% hit (4,838 props); the five likeliest per game were given 65% and 65% hit. Likely to hit isn't the same as a good bet, since these aren't compared with the sportsbook's price.
+
+## College football
+
+Games involving a top-division (FBS) school since 2001 from [cfbfastR-data](https://github.com/sportsdataverse/cfbfastR-data), which republishes CollegeFootballData's schedules, scores, conferences and pre-game Elo ratings, plus several sportsbooks' betting lines (2006-2025). Second-division (FCS) games are included so the FCS schools that FBS teams play are rated properly. Betting lines are turned into one consensus per game: each book's moneyline with its margin removed, averaged; team names in old lines are abbreviations, matched to teams by the games they appear in.
+
+**Model** (`cfb/model.py`). The NFL points model without quarterback ratings (the free data can't support them): offense and defense ratings for every team, home advantage (about 3 points), fitted by weighted least squares on four seasons, with recent games counting more and each earlier season counting less again, since college rosters turn over quickly. Tuned on 2010-2017 (`cfb/tune_model.py`): log loss went from 0.536 with first guesses to 0.479. Almost all of that came from much weaker shrinkage than the NFL's: college teams really are far apart (the best are 40+ points better than the worst), and with old games down-weighted, strong shrinkage pulled every rating toward average.
+
+**Results** on held-out seasons (2018-2025), log loss (ties left out):
+
+| | Games with an Elo rating (5,849) | Games with odds (5,430) |
+|---|---|---|
+| This model | **0.5351** | 0.5234 |
+| CollegeFootballData's Elo | 0.5538 | 0.5654 |
+| Betting market (closing consensus) | | **0.5043** |
+
+The model beats CollegeFootballData's Elo but not the market, which knows about quarterback injuries, transfers and suspensions the free data doesn't capture; the gap (0.019) is about the same as the NFL model's. The free lines don't cover the current season yet, so upcoming games are compared with Elo instead.
 
 ## Website
 
@@ -148,7 +168,7 @@ NFL pages (under `/nfl/`): upcoming games with win chances, expected margin and 
 
 - **One command updates everything:** `update.py` runs the results, xG, backtest, fixtures, prediction and availability steps in order, stopping at the first failure.
 - **GitHub Actions** runs the test suite on every push, and twice a week (Tuesdays and Fridays) runs the update for both sports and commits new predictions to `records/` before kickoff. If one sport's data source fails, the other sport still updates.
-- **142 pytest tests** cover the importers (including format quirks and source changes), the model (valid probabilities, recovering known team strengths from simulated leagues, no look-ahead in the backtest), the prediction record (nothing changes after kickoff), the simulator, the NFL importers, models and player projections (including that nothing uses the game being predicted), and both sports' websites. Tests use simulated leagues and temporary databases, never real data or the network.
+- **166 pytest tests** cover the importers (including format quirks and source changes), the model (valid probabilities, recovering known team strengths from simulated leagues, no look-ahead in the backtest), the prediction record (nothing changes after kickoff), the simulator, the NFL importers, models and player projections (including that nothing uses the game being predicted), and every sport's website. Tests use simulated leagues and temporary databases, never real data or the network.
 
 ## Project structure
 
@@ -158,6 +178,7 @@ db.py                   Shared database helpers; schema.sql defines one database
 app.py, web.py          The website: Premier League pages and shared helpers (NFL pages in nfl/site.py)
 colors.py               Team colors for the website, with clash and dark-mode handling
 charts.py               The team page charts (drawn as HTML and SVG, no chart library)
+blend.py                Blending a model with the betting market (weighted on the log-odds scale)
 templates/, static/     Page templates and styles; build_site.py renders the site as static HTML
 records/                Official live predictions, saved before kickoff
 tests/                  pytest suite
@@ -176,6 +197,7 @@ epl/                    Premier League
   promoted_teams.py       How the model handles newly promoted teams
   import_fpl_values.py, import_transfermarkt.py, tune_squad_value.py, tune_value_fade.py
                           Squad-value data and experiments
+  blend.py                The model-market blend test (python -m epl.blend; result in epl/blend.json)
   team_aliases.sql        Team-name mappings between data sources
   checks.sql              SQL sanity checks and data exploration queries
   poisson_model.ipynb     Model development notebook
@@ -194,7 +216,18 @@ nfl/                    NFL
   run_backtest.py         Saves walk-forward backtest predictions
   predict_upcoming.py     Predicts the next 8 days' games and records them before kickoff
   records.py              The official NFL prediction record in records/
+  season.py               Playoff odds: the rest of the season simulated 10,000 times, tested on past seasons
+  teams.py                Team names, divisions and conferences
+  blend.py, blend.json    The model-market blend test and its result
   site.py                 The NFL web pages
+
+cfb/                    College football
+  import_cfb.py           Games, scores, conferences, Elo and consensus betting lines from cfbfastR-data
+  model.py, tune_model.py Points model (offense and defense ratings) and its tuning
+  run_backtest.py         Saves walk-forward backtest predictions
+  predict_upcoming.py     Predicts the next 8 days' games and records them before kickoff
+  records.py              The official college football prediction record in records/
+  site.py                 The college football web pages
   checks.sql              SQL data checks and exploration queries
 ```
 
@@ -209,7 +242,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-python update.py              # builds data/sports.db for both sports (the first run downloads every season)
+python update.py              # builds data/sports.db for every sport (the first run downloads every season)
 uvicorn app:app --reload      # then open http://127.0.0.1:8000
 pytest                        # run the tests
 ```
@@ -217,11 +250,12 @@ pytest                        # run the tests
 ## Roadmap
 
 - Betting lines for player stats going forward, to compare player projections with the market
-- College football and basketball
+- College basketball
+- Betting lines for the current college football season, to compare upcoming games with the market
 - Player availability: adjust for injured and suspended players, the largest remaining source of the gap to the market
-- An optional "model + market" forecast that blends the model with pre-match odds
+- Test the model-market blend with pre-match (not closing) odds, once they're collected
 - Use the fading squad-value adjustment for live predictions
 
 ## Acknowledgements
 
-Data comes from football-data.co.uk, Understat, Fantasy Premier League and nflverse; please respect their terms of use. Historical FPL prices come from the [FPL Historical Dataset](https://github.com/vaastav/Fantasy-Premier-League) by Vaastav Anand (MIT License), and player valuations from [transfermarkt-datasets](https://github.com/dcaribou/transfermarkt-datasets) (CC0). Understat has no official API, so its importer may need updating if the site changes. This is a statistics project, not betting advice.
+Data comes from football-data.co.uk, Understat, Fantasy Premier League, nflverse, and CollegeFootballData (via sportsdataverse's cfbfastR-data); please respect their terms of use. Historical FPL prices come from the [FPL Historical Dataset](https://github.com/vaastav/Fantasy-Premier-League) by Vaastav Anand (MIT License), and player valuations from [transfermarkt-datasets](https://github.com/dcaribou/transfermarkt-datasets) (CC0). Understat has no official API, so its importer may need updating if the site changes. This is a statistics project, not betting advice.

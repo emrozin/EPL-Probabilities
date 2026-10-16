@@ -219,3 +219,34 @@ CREATE TABLE IF NOT EXISTS nfl_snap_counts (
     offense_pct   REAL,
     PRIMARY KEY (game_id, team, name)
 );
+
+-- NFL playoff odds (nfl/season.py): each run's simulated chances, one row per team, kept as a history.
+CREATE TABLE IF NOT EXISTS nfl_season_odds (
+    season     INTEGER NOT NULL,
+    as_of      TEXT NOT NULL,              -- the date the odds were made (games before it are known)
+    team       TEXT NOT NULL,
+    wins       REAL NOT NULL,              -- average regular-season wins
+    division   REAL NOT NULL,              -- chance of winning the division
+    playoffs   REAL NOT NULL,
+    top_seed   REAL NOT NULL,
+    conference REAL NOT NULL,              -- chance of reaching the Super Bowl
+    champion   REAL NOT NULL,              -- chance of winning it
+    PRIMARY KEY (season, as_of, team)
+);
+
+-- College football game details from cfbfastR-data (cfb/import_cfb.py), one row per game.
+CREATE TABLE IF NOT EXISTS cfb_game_info (
+    game_id          INTEGER PRIMARY KEY REFERENCES games(id),
+    source_game_id   TEXT NOT NULL UNIQUE,     -- ESPN's game id, as used by CollegeFootballData
+    week             INTEGER NOT NULL,
+    season_type      TEXT NOT NULL,            -- 'regular' or 'postseason'
+    neutral_site     INTEGER NOT NULL CHECK (neutral_site IN (0, 1)),
+    conference_game  INTEGER,
+    home_division    TEXT, away_division TEXT, -- 'fbs' or 'fcs'
+    home_conference  TEXT, away_conference TEXT,
+    home_elo         REAL, away_elo REAL,      -- CollegeFootballData's pre-game Elo (a benchmark)
+    venue            TEXT,
+    notes            TEXT,                     -- e.g. bowl names
+    spread_line      REAL,                     -- consensus closing spread, the HOME team's handicap
+    total_line       REAL                      -- consensus closing total
+);

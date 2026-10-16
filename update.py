@@ -19,6 +19,12 @@ NFL (nfl/):
     3. run_backtest        backtest predictions, now including the latest games
     4. predict_upcoming    predictions for the next 8 days' games, saved before kickoff
     5. predict_players     player projections for those games, saved before kickoff
+    6. season              playoff odds: the rest of the season simulated 10,000 times
+
+College football (cfb/):
+    1. import_cfb          games, results and betting lines from cfbfastR-data
+    2. run_backtest        backtest predictions, now including the latest games
+    3. predict_upcoming    predictions for the next 8 days' games, saved before kickoff
 
 Each step is a module run with "python -m", e.g. python -m epl.import_epl. Within a sport, a
 failed step stops that sport's remaining steps (they depend on it), but the other sport still
@@ -50,9 +56,16 @@ SPORTS = {
         ("nfl.run_backtest", "Backtest predictions"),
         ("nfl.predict_upcoming", "Predictions for upcoming games"),
         ("nfl.predict_players", "Player projections for upcoming games"),
+        ("nfl.season", "Playoff odds (season simulation)"),
+    ],
+    "College football": [
+        ("cfb.import_cfb", "Games, results and lines"),
+        ("cfb.run_backtest", "Backtest predictions"),
+        ("cfb.predict_upcoming", "Predictions for upcoming games"),
     ],
 }
-RECORDING_STEPS = {"epl.predict_upcoming", "nfl.predict_upcoming", "nfl.predict_players"}
+RECORDING_STEPS = {"epl.predict_upcoming", "nfl.predict_upcoming", "nfl.predict_players", "nfl.season",
+                   "cfb.predict_upcoming"}
 BUILD_STEP = ("build_site", "Static website (docs/)")
 
 

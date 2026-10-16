@@ -954,3 +954,35 @@ a:focus-visible, select:focus-visible, summary:focus-visible { outline: 3px soli
 .card-top:not(:has(.edge, .source, .badge)):has(.card-when:not(:has(*))) { display: none; }
 .team-chip { display: inline-block; margin-right: 0.55rem; vertical-align: 0.05em; width: 0.7rem; height: 0.7rem; background: var(--hl); }
 @media (prefers-color-scheme: dark) { .team-chip { background: var(--hd); } }
+
+/* ---------- Playoff odds ---------- */
+.odds-conference { margin-bottom: 2.5rem; }
+.odds-table { max-width: 60rem; }
+.odds-cell {
+  background: color-mix(in srgb, var(--accent) calc(var(--strength) * 38%), transparent);
+  font-weight: 500;
+}
+.odds-main { font-weight: 700; }
+.change { font-size: 0.85rem; color: var(--muted); }
+.change-up { color: var(--good); }
+.change-down { color: var(--bad); }
+.blend-table { max-width: 26rem; }
+.blend-table tr:nth-last-child(2) th, .blend-table tr:nth-last-child(2) td { font-weight: 500; }
+.blend-table tr.blend-best th, .blend-table tr.blend-best td { font-weight: 700; color: var(--accent); }
+.card-lines tr.blend-row td { color: var(--accent); font-weight: 600; }
+
+/* ---------- Filter chips (college football conferences) ---------- */
+.filter-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0 0 1.5rem; }
+.filter-chips a {
+  padding: 0.2rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.filter-chips a:hover { color: var(--ink); }
+.filter-chips a[aria-current="page"] { background: var(--ink); border-color: var(--ink); color: var(--paper); }

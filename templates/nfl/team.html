@@ -22,10 +22,11 @@
 
 {% if summary %}{{ scorecard(summary) }}{% endif %}
 
-{% if rating_chart or chance_chart %}
+{% if rating_chart or chance_chart or playoff_chart %}
 <section class="team-charts">
   {% if rating_chart %}{{ rating_line(rating_chart, 'Model rating through ' ~ season, 'Points per game better (+) or worse (−) than an average team, as the model rated ' ~ nfl_nickname(team) ~ ' at the start of the season and after each week. Hover over a point for the details.') }}{% endif %}
   {% if chance_chart %}{{ chance_columns(chance_chart, 'Win chance, game by game', nfl_nickname(team)) }}{% endif %}
+  {% if playoff_chart %}{{ rating_line(playoff_chart.chart, 'Playoff chance through ' ~ playoff_chart.season ~ ': now ' ~ playoff_chart.now, 'From the season simulation, before each week. See all teams on the playoff odds page.', '') }}{% endif %}
 </section>
 {% endif %}
 

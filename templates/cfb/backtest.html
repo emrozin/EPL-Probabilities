@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Backtest | College football probabilities{% endblock %}
+{% block content %}
+<div class="intro">
+  <h1>How good is the model?</h1>
+  {% if seasons %}<p class="lede">Every week since 2010, the model was trained only on earlier games, then asked to predict that week. Settings were tuned on 2010&ndash;2017; {{ from }}&ndash;2025 is the honest test.</p>{% endif %}
+</div>
+{% if seasons %}
+<section class="headline">
+  <div class="scorecard">
+    <div class="stat"><p class="stat-value">{{ headline.model_typical }}%</p><p class="stat-label">Model's typical probability for the winner, {{ from }}&ndash;2025 ({{ "{:,}".format(headline.games) }} games)</p></div>
+    <div class="stat"><p class="stat-value stat-muted">{{ headline.elo_typical }}%</p><p class="stat-label">CollegeFootballData's Elo rating ({{ headline.model_rated_typical }}% for the model on the same {{ "{:,}".format(headline.rated) }} games)</p></div>
+    <div class="stat"><p class="stat-value stat-muted">{{ headline.favorite }}</p><p class="stat-label">Games won by the model's favorite</p></div>
+  </div>
+  <table class="dev-table track-table">
+    <thead><tr><th scope="col">Log loss, {{ from }}&ndash;2025 (lower is better)</th><th scope="col" class="num">Games with an Elo rating</th><th scope="col" class="num">Games with odds</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">This model</th><td class="num"><strong>{{ headline.model }}</strong></td><td class="num"><strong>{{ headline.model_priced }}</strong></td></tr>
+      <tr><th scope="row">CollegeFootballData's Elo</th><td class="num">{{ headline.elo }}</td><td class="num">{{ headline.elo_priced }}</td></tr>
+      <tr><th scope="row">Betting market (closing consensus)</th><td class="num">&ndash;</td><td class="num">{{ headline.market_priced }}</td></tr>
+    </tbody>
+  </table>
+  <p class="note">Games with an Elo rating: {{ "{:,}".format(headline.rated) }}. Games with odds: {{ "{:,}".format(headline.priced) }} (the free odds miss some games, and all of 2020). The market is the average of several sportsbooks' closing moneylines with their margins removed.</p>
+</section>
+<section class="seasons">
+  <h2>Season by season</h2>
+  <div class="table-wrap">
+    <table class="season-table">
+      <thead><tr><th scope="col">Season</th><th scope="col" class="num">With Elo</th><th scope="col" class="num">Model</th><th scope="col" class="num">Elo</th><th scope="col" class="num">With odds</th><th scope="col" class="num">Model</th><th scope="col" class="num">Market</th></tr></thead>
+      <tbody>
+        {% for s in seasons %}
+        <tr{% if s.held_out %} class="held-out"{% endif %}><th scope="row">{{ s.label }}{% if not s.held_out %} <span class="tag">tuning</span>{% endif %}</th>
+          <td class="num">{{ s.games }}</td><td class="num">{{ s.model }}</td><td class="num">{{ s.elo }}</td><td class="num">{{ s.priced }}</td><td class="num">{{ s.model_priced }}</td><td class="num">{{ s.market }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+<section class="development">
+  <h2>When the model gives a team a chance, does it win that often?</h2>
+  <table class="dev-table track-table">
+    <thead><tr><th scope="col">Home team's chance</th><th scope="col" class="num">Games</th><th scope="col" class="num">Average forecast</th><th scope="col" class="num">Home team won</th></tr></thead>
+    <tbody>{% for c in calibration %}<tr><th scope="row">{{ c.range }}</th><td class="num">{{ c.games }}</td><td class="num">{{ c.predicted }}</td><td class="num">{{ c.actual }}</td></tr>{% endfor %}</tbody>
+  </table>
+  <p class="note">The win chance comes from the expected margin: college margins typically land within about {{ margin_sd }} points of it either way.</p>
+</section>
+{% else %}
+<section class="empty"><h2>No backtest results yet</h2><p>Run <code>python -m cfb.run_backtest</code> to generate them.</p></section>
+{% endif %}
+{% endblock %}

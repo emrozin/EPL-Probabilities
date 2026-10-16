@@ -17,7 +17,8 @@ BASE = os.environ.get("SITE_BASE", "").rstrip("/")  # "" locally, the repository
 templates = Jinja2Templates(directory=ROOT / "templates")
 templates.env.globals["base"] = BASE
 # The sport menu in the header: (label, sport code, home page)
-templates.env.globals["sports"] = [("Premier League", "epl", f"{BASE}/"), ("NFL", "nfl", f"{BASE}/nfl/")]
+templates.env.globals["sports"] = [("Premier League", "epl", f"{BASE}/"), ("NFL", "nfl", f"{BASE}/nfl/"),
+                                   ("College", "cfb", f"{BASE}/cfb/")]
 
 # Team colors (colors.py): style="..." strings that set --home/--away (a game) or --team (a team page)
 import colors  # noqa: E402
@@ -29,6 +30,9 @@ templates.env.globals["epl_team_colors"] = lambda team: colors.team_style(colors
 # a small square in a team's main color, before its name in tables
 templates.env.globals["nfl_chip"] = lambda team: colors.chip(colors.NFL, team)
 templates.env.globals["epl_chip"] = lambda team: colors.chip(colors.EPL, team)
+templates.env.globals["cfb_colors"] = lambda home, away: colors.style(colors.CFB, home, away)
+templates.env.globals["cfb_team_colors"] = lambda team: colors.team_style(colors.CFB, team)
+templates.env.globals["cfb_chip"] = lambda team: colors.chip(colors.CFB, team)
 
 
 def edge(model: dict | None, market: dict | None, sides: dict, threshold: int = 5) -> dict | None:

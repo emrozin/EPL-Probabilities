@@ -26,6 +26,8 @@ from epl.model import (TRAINING_YEARS, add_scores, fit_poisson, goal_markets, lo
 from epl.predict_upcoming import MODEL_NAME, MODEL_VERSION
 from epl.run_backtest import BACKTEST_NAME, BACKTEST_VERSION, HELD_OUT_FROM, START_SEASON
 from epl.simulate import remaining_fixtures, simulate_season
+import blend
+from epl import blend as epl_blend
 from web import BASE, ROOT, day_label, edge, ordinal, signed_number, slugify, templates, typical_probability
 
 DB_PATH = ROOT / "data" / "sports.db"
@@ -348,6 +350,10 @@ def upcoming(request: Request):
     with connect() as conn:
         matches = load_upcoming(conn, date.today().isoformat())
 
+    # the model-market blend, only if it beat the market on the held-out seasons (python -m epl.blend)
+    info = epl_blend.load_info()
+    blend_weight = info["weight"] if info and info["held_out"]["blend"] < info["held_out"]["market"] else None
+
     days = []
     for match_date, group in matches.groupby("date", sort=True):
         day_matches = []
@@ -363,6 +369,10 @@ def upcoming(request: Request):
             })
             day_matches[-1]["edge"] = edge(day_matches[-1]["model"], day_matches[-1]["market"],
                                            {"home": m.home, "away": m.away})
+            if blend_weight is not None and has_market:
+                b = epl_blend.probabilities({"home": m.model_home, "draw": m.model_draw, "away": m.model_away},
+                                            {"home": m.mkt_home, "draw": m.mkt_draw, "away": m.mkt_away}, blend_weight)
+                day_matches[-1]["blend"] = percentages(b["home"], b["draw"], b["away"])
         days.append({"label": day_label(match_date), "matches": day_matches})
 
     return templates.TemplateResponse(request, "upcoming.html", {"active": "upcoming", "days": days})
@@ -834,6 +844,7 @@ def backtest_page(request: Request):
     }
 
     return templates.TemplateResponse(request, "backtest.html", {
+        "blend": blend.load(ROOT / "epl" / "blend.json"),
         "active": "backtest",
         "seasons": seasons,
         "headline": headline,
@@ -904,3 +915,5 @@ def ratings(request: Request):
 from nfl.site import router as nfl_router  # noqa: E402
 
 app.include_router(nfl_router)
+from cfb.site import router as cfb_router  # noqa: E402
+app.include_router(cfb_router)

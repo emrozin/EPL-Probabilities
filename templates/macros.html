@@ -72,6 +72,7 @@
         <tbody>
           <tr><th scope="row">Model</th><td>{{ m.model.home }}%</td><td>{{ m.model.draw }}%</td><td>{{ m.model.away }}%</td><td>{{ m.over ~ '%' if m.over is not none else '–' }}</td></tr>
           <tr class="muted"><th scope="row">Market</th>{% if m.market %}<td>{{ m.market.home }}%</td><td>{{ m.market.draw }}%</td><td>{{ m.market.away }}%</td>{% else %}<td colspan="3">No odds yet</td>{% endif %}<td>{{ m.market_over ~ '%' if m.market_over is not none else '–' }}</td></tr>
+          {% if m.blend %}<tr class="blend-row"><th scope="row" title="Model and market combined, weighted as tested on past seasons">Blend</th><td>{{ m.blend.home }}%</td><td>{{ m.blend.draw }}%</td><td>{{ m.blend.away }}%</td><td></td></tr>{% endif %}
         </tbody>
       </table>
       {% if m.top_scores %}<p class="card-note">Likeliest scores: {% for sc in m.top_scores %}<strong>{{ sc.score }}</strong> {{ sc.pct }}%{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}

@@ -5,11 +5,11 @@
   <figcaption class="chart-title">{{ title }}</figcaption>
   <div class="chart-body">
     <div class="chart-y" aria-hidden="true">
-      {% for t in chart.ticks %}<span style="top: {{ t.y }}%">{{ signed_number(t.value, 0) }}</span>{% endfor %}
+      {% for t in chart.ticks %}<span style="top: {{ t.y }}%">{{ t.label if t.label is defined else signed_number(t.value, 0) }}</span>{% endfor %}
     </div>
     <div class="chart-plot">
       {% for t in chart.ticks %}<span class="grid{% if t.value == 0 %} grid-zero{% endif %}" style="top: {{ t.y }}%"></span>{% endfor %}
-      <span class="zero-label" style="top: {{ (chart.ticks[2].y) }}%">{{ zero_label }}</span>
+      {% if zero_label %}<span class="zero-label" style="top: {{ (chart.ticks[2].y) }}%">{{ zero_label }}</span>{% endif %}
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="{{ chart.path }}"/></svg>
       {% for p in chart.points %}
       <span class="pt{% if loop.last %} pt-last{% endif %}" style="left: {{ p.x }}%; top: {{ p.y }}%" tabindex="0" data-tip="{{ p.tip }}" aria-label="{{ p.tip }}"></span>

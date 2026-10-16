@@ -1,6 +1,6 @@
 <!doctype html>
 {% set sport = sport | default('epl') %}
-{% set sport_name = 'NFL' if sport == 'nfl' else 'Premier League' %}
+{% set sport_name = {'nfl': 'NFL', 'cfb': 'College football'}.get(sport, 'Premier League') %}
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -15,7 +15,7 @@
 <body class="sport-{{ sport }}">
   <header class="site-header">
     <div class="site-brand">
-      <a class="site-title" href="{{ base }}{{ '/nfl/' if sport == 'nfl' else '/' }}">{{ sport_name }} probabilities</a>
+      <a class="site-title" href="{{ base }}{{ {'nfl': '/nfl/', 'cfb': '/cfb/'}.get(sport, '/') }}">{{ sport_name }} probabilities</a>
       <nav class="sport-tabs" aria-label="Sport">
         {% for label, code, url in sports %}<a href="{{ url }}" {% if code == sport %}aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
       </nav>
@@ -25,9 +25,16 @@
       <a href="{{ base }}/nfl/" {% if active == 'upcoming' %}aria-current="page"{% endif %}>Upcoming</a>
       <a href="{{ base }}/nfl/results/" {% if active == 'results' %}aria-current="page"{% endif %}>Results</a>
       <a href="{{ base }}/nfl/standings/" {% if active == 'standings' %}aria-current="page"{% endif %}>Standings</a>
+      <a href="{{ base }}/nfl/playoffs/" {% if active == 'playoffs' %}aria-current="page"{% endif %}>Playoff odds</a>
       <a href="{{ base }}/nfl/track-record/" {% if active == 'track' %}aria-current="page"{% endif %}>Track record</a>
       <a href="{{ base }}/nfl/backtest/" {% if active == 'backtest' %}aria-current="page"{% endif %}>Backtest</a>
       <a href="{{ base }}/nfl/ratings/" {% if active == 'ratings' %}aria-current="page"{% endif %}>Team ratings</a>
+      {% elif sport == 'cfb' %}
+      <a href="{{ base }}/cfb/" {% if active == 'upcoming' %}aria-current="page"{% endif %}>Upcoming</a>
+      <a href="{{ base }}/cfb/results/" {% if active == 'results' %}aria-current="page"{% endif %}>Results</a>
+      <a href="{{ base }}/cfb/ratings/" {% if active == 'ratings' %}aria-current="page"{% endif %}>Team ratings</a>
+      <a href="{{ base }}/cfb/track-record/" {% if active == 'track' %}aria-current="page"{% endif %}>Track record</a>
+      <a href="{{ base }}/cfb/backtest/" {% if active == 'backtest' %}aria-current="page"{% endif %}>Backtest</a>
       {% else %}
       <a href="{{ base }}/" {% if active == 'upcoming' %}aria-current="page"{% endif %}>Upcoming</a>
       <a href="{{ base }}/results/" {% if active == 'results' %}aria-current="page"{% endif %}>Results</a>
@@ -45,7 +52,9 @@
   </main>
 
   <footer class="site-footer">
-    {% if sport == 'nfl' %}
+    {% if sport == 'cfb' %}
+    <p>Probabilities come from a points model: offense and defense ratings for every team, fitted to the last three seasons with recent games weighted most. Data from CollegeFootballData via cfbfastR-data. This is a statistics project, not betting advice.</p>
+    {% elif sport == 'nfl' %}
     <p>Probabilities come from a points model: offense and defense ratings fitted to four years of games, with recent games weighted more heavily and a rating for every starting quarterback. Data from nflverse. This is a statistics project, not betting advice.</p>
     {% else %}
     <p>Probabilities come from a Poisson model fitted to three years of results and expected goals, with recent matches weighted more heavily. Data from football-data.co.uk and Understat. This is a statistics project, not betting advice.</p>

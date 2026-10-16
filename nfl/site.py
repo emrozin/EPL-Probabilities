@@ -19,6 +19,7 @@ from nfl.model import HALF_LIFE_DAYS, INEXPERIENCE_STARTS, MARGIN_SD, TRAINING_Y
 from nfl.predict_upcoming import MODEL_NAME
 from nfl.run_backtest import BACKTEST_NAME, BACKTEST_VERSION, HELD_OUT_FROM, START_SEASON
 from web import BASE, ROOT, day_label, edge, ordinal, signed_number, slugify, templates, typical_probability
+import blend
 
 DB_PATH = ROOT / "data" / "sports.db"
 router = APIRouter(prefix="/nfl")
@@ -47,27 +48,7 @@ PLAYER_ACCURACY = [
     ("Receiving yards", "17.0", "18.6", "18.0"),
 ]
 
-# Current names and divisions. Relocated teams appear under their current name throughout
-# (Oakland Raiders -> Las Vegas, San Diego Chargers -> Los Angeles, St. Louis Rams -> Los Angeles).
-TEAMS = {
-    "BUF": ("Buffalo Bills", "AFC East"), "MIA": ("Miami Dolphins", "AFC East"),
-    "NE": ("New England Patriots", "AFC East"), "NYJ": ("New York Jets", "AFC East"),
-    "BAL": ("Baltimore Ravens", "AFC North"), "CIN": ("Cincinnati Bengals", "AFC North"),
-    "CLE": ("Cleveland Browns", "AFC North"), "PIT": ("Pittsburgh Steelers", "AFC North"),
-    "HOU": ("Houston Texans", "AFC South"), "IND": ("Indianapolis Colts", "AFC South"),
-    "JAX": ("Jacksonville Jaguars", "AFC South"), "TEN": ("Tennessee Titans", "AFC South"),
-    "DEN": ("Denver Broncos", "AFC West"), "KC": ("Kansas City Chiefs", "AFC West"),
-    "LV": ("Las Vegas Raiders", "AFC West"), "LAC": ("Los Angeles Chargers", "AFC West"),
-    "DAL": ("Dallas Cowboys", "NFC East"), "NYG": ("New York Giants", "NFC East"),
-    "PHI": ("Philadelphia Eagles", "NFC East"), "WAS": ("Washington Commanders", "NFC East"),
-    "CHI": ("Chicago Bears", "NFC North"), "DET": ("Detroit Lions", "NFC North"),
-    "GB": ("Green Bay Packers", "NFC North"), "MIN": ("Minnesota Vikings", "NFC North"),
-    "ATL": ("Atlanta Falcons", "NFC South"), "CAR": ("Carolina Panthers", "NFC South"),
-    "NO": ("New Orleans Saints", "NFC South"), "TB": ("Tampa Bay Buccaneers", "NFC South"),
-    "ARI": ("Arizona Cardinals", "NFC West"), "LA": ("Los Angeles Rams", "NFC West"),
-    "SF": ("San Francisco 49ers", "NFC West"), "SEA": ("Seattle Seahawks", "NFC West"),
-}
-DIVISIONS_FROM = 2002   # the current eight divisions began in 2002
+from nfl.teams import DIVISIONS_FROM, TEAMS  # noqa: E402  (names, divisions)
 PLAYOFF_ROUNDS = {"WC": "Wild Card round", "DIV": "Divisional round", "CON": "Conference championships",
                   "SB": "Super Bowl"}
 
@@ -396,6 +377,97 @@ def record_text(r) -> str:
     return f"{r.won}–{r.lost}" + (f"–{r.tied}" if r.tied else "")
 
 
+# ---------------------------------------------------------------- playoff odds
+
+def odds_text(p: float) -> str:
+    """A simulated chance for the page: '<1%' and '>99%' near the ends; '–' if it never happened."""
+    if p <= 0:
+        return "–"
+    if p < 0.005:
+        return "<1%"
+    if p > 0.995:
+        return ">99%"
+    return f"{p * 100:.0f}%"
+
+
+def load_season_odds() -> pd.DataFrame:
+    with connect() as conn:
+        if conn.execute("SELECT name FROM sqlite_master WHERE name = 'nfl_season_odds'").fetchone() is None:
+            return pd.DataFrame()
+        return pd.read_sql("SELECT * FROM nfl_season_odds", conn)
+
+
+def season_odds() -> dict | None:
+    """The latest playoff odds for the latest season that has them, and the ones from about a week
+    earlier (for the change column). Cached with the rest of the data."""
+    d = data()
+    if "season_odds" not in d:
+        odds = load_season_odds()
+        result = None
+        if not odds.empty:
+            season = int(odds["season"].max())
+            odds = odds[odds["season"] == season]
+            dates = sorted(odds["as_of"].unique())
+            latest = dates[-1]
+            week_ago = [x for x in dates if pd.Timestamp(x) <= pd.Timestamp(latest) - pd.Timedelta(days=6)]
+            result = {"season": season, "as_of": latest, "all": odds,
+                      "latest": odds[odds["as_of"] == latest].set_index("team"),
+                      "before": odds[odds["as_of"] == week_ago[-1]].set_index("team") if week_ago else None,
+                      "before_as_of": week_ago[-1] if week_ago else None}
+        d["season_odds"] = result
+    return d["season_odds"]
+
+
+@router.get("/playoffs/", response_class=HTMLResponse)
+def playoffs_page(request: Request):
+    from nfl.season import RATING_SD, SIMULATIONS
+    odds = season_odds()
+    if odds is None:
+        return render(request, "playoffs.html", {"active": "playoffs", "conferences": []})
+    latest, before = odds["latest"], odds["before"]
+    table = standings(odds["season"]).set_index("team")
+    columns = ["division", "playoffs", "top_seed", "conference", "champion"]
+    conferences = []
+    for conf in ("AFC", "NFC"):
+        teams = [t for t in latest.index if TEAMS.get(t, ("", ""))[1].startswith(conf)]
+        teams.sort(key=lambda t: (-latest.at[t, "playoffs"], -latest.at[t, "wins"]))
+        rows = []
+        for t in teams:
+            r = latest.loc[t]
+            change = None
+            if before is not None and t in before.index:
+                delta = round((r["playoffs"] - before.at[t, "playoffs"]) * 100)
+                change = {"text": signed_number(delta) if delta else "0", "dir": "up" if delta > 0 else "down" if delta < 0 else ""}
+            rows.append({"team": t, "name": team_name(t), "url": team_url(t),
+                         "record": record_text(table.loc[t]) if t in table.index else "0–0",
+                         "wins": f"{r['wins']:.1f}", "change": change,
+                         **{c: {"text": odds_text(r[c]), "value": float(r[c])} for c in columns}})
+        conferences.append({"label": conf, "rows": rows})
+    return render(request, "playoffs.html", {
+        "active": "playoffs", "conferences": conferences, "season": odds["season"],
+        "as_of": day_label(odds["as_of"]), "before_as_of": day_label(odds["before_as_of"]) if odds["before_as_of"] else None,
+        "simulations": f"{SIMULATIONS:,}", "rating_sd": f"{RATING_SD:g}",
+    })
+
+
+def playoff_history(team: str) -> dict | None:
+    """A team's playoff chance after each update this season, for the line on its page."""
+    from charts import line_chart
+    odds = season_odds()
+    if odds is None:
+        return None
+    own = odds["all"][odds["all"]["team"] == team].sort_values("as_of")
+    if len(own) < 2:
+        return None
+    points = [{"label": f"{pd.Timestamp(r.as_of):%-d %b}", "value": r.playoffs * 100 - 50,
+               "tip": f"{day_label(r.as_of)}: {odds_text(r.playoffs)} to make the playoffs, {r.wins:.1f} wins expected"}
+              for r in own.itertuples()]
+    chart = line_chart(points, step=25, minimum=50)
+    for tick in chart["ticks"]:
+        tick["label"] = f"{tick['value'] + 50:.0f}%"
+    return {"chart": chart, "season": odds["season"], "now": odds_text(own.iloc[-1]["playoffs"])}
+
+
 @router.get("/standings/", response_class=HTMLResponse)
 def standings_latest(request: Request):
     return standings_page(request, None)
@@ -571,6 +643,7 @@ def team_page(request: Request, slug: str, season: int | None):
         "standings_url": f"{BASE}/nfl/standings/{season}/",
         "seasons": season_options(seasons, season, lambda s: team_url(team, s)),
         **team_charts(team, season, played),
+        "playoff_chart": playoff_history(team) if season == latest else None,
     })
 
 
@@ -911,6 +984,7 @@ def backtest_page(request: Request):
                     "actual": f"{(part['home_score'] > part['away_score']).mean() * 100:.0f}%"}
                    for b, part in held.groupby(bins, observed=True)]
     return render(request, "backtest.html", {
+        "blend": blend.load(ROOT / "nfl" / "blend.json"),
         "active": "backtest", "seasons": seasons,
         "headline": {"games": len(held), "from": HELD_OUT_FROM,
                      "model": f"{held['model_logloss'].mean():.4f}", "market": f"{held['mkt_logloss'].mean():.4f}",

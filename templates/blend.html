@@ -1,0 +1,25 @@
+{# The model-market blend test, on the backtest pages. info: the saved blend.json, or none. #}
+{% macro blend_section(info, games_noun, command) %}
+<section class="detail-section blend-section">
+  <h2>Blending the model with the market</h2>
+  {% if info %}
+  {% set h = info.held_out %}
+  {% set helped = h.blend < h.market %}
+  <p class="section-note">The model and the market were combined on the log-odds scale, with the model's weight chosen on the tuning seasons ({{ info.tuning_seasons|replace('-', '–') }}): {{ (info.weight * 100)|round|int }}% model, {{ ((1 - info.weight) * 100)|round|int }}% market. Then the blend was tested once on the held-out seasons ({{ info.held_out_seasons|replace('-', '–') }}, {{ "{:,}".format(info.held_out_games) }} {{ games_noun }}):</p>
+  <table class="dev-table blend-table">
+    <tbody>
+      <tr><th scope="row">Model alone</th><td class="num">{{ "%.4f"|format(h.model) }}</td></tr>
+      <tr><th scope="row">Market alone (closing odds)</th><td class="num">{{ "%.4f"|format(h.market) }}</td></tr>
+      <tr class="{{ 'blend-best' if helped else '' }}"><th scope="row">Blend</th><td class="num">{{ "%.4f"|format(h.blend) }}</td></tr>
+    </tbody>
+  </table>
+  {% if helped %}
+  <p class="note">Log loss, lower is better. The blend beat the market on seasons it wasn't tuned on, so the model knows something the closing odds don't fully price in. Upcoming {{ games_noun }} show the blend next to the model and the market.</p>
+  {% else %}
+  <p class="note">Log loss, lower is better. The blend did <strong>not</strong> beat the market on the held-out seasons: the closing odds already contain what the model knows, plus late news it never sees. So the site doesn't show a blend. One caveat: this uses closing odds; a live blend would use earlier odds, which know less, and that can't be tested with the odds available.</p>
+  {% endif %}
+  {% else %}
+  <p class="section-note">Not tested yet. Run <code>{{ command }}</code> to choose the weight on the tuning seasons and test it on the held-out ones.</p>
+  {% endif %}
+</section>
+{% endmacro %}

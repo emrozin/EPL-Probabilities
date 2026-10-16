@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Playoff odds | NFL probabilities{% endblock %}
+
+{% macro pct_cell(c, extra='') %}<td class="num odds-cell {{ extra }}" style="--strength: {{ c.value }}">{{ c.text }}</td>{% endmacro %}
+
+{% block content %}
+<div class="intro">
+  <h1>Playoff odds{% if season %}: {{ season }}{% endif %}</h1>
+  {% if conferences %}
+  <p class="lede">Each team's chances, from the rest of the season played out {{ simulations }} times. Updated {{ as_of }}.</p>
+  <details class="explain">
+    <summary>How this works</summary>
+    <p>Every remaining game gets a random result from the model: its expected margin (team ratings, home field and the expected quarterbacks) plus the usual game-to-game spread. Each simulated season also shifts every team's rating by a random amount (typically about {{ rating_sd }} points), because ratings are estimates; without that, the odds come out too sure of themselves.</p>
+    <p>Division winners and seeds follow the main NFL tiebreakers: head-to-head, division or conference record, then point differential. The full rules have more steps, but these settle almost every real tie. Then the playoffs are played out the same way.</p>
+    <p>Tested on 2018&ndash;2025 after weeks 4, 8 and 12: teams given 20&ndash;40% made the playoffs 35% of the time, 40&ndash;60% 52%, and 60&ndash;80% 67%. A dash means it didn't happen in any simulation; that's not the same as being eliminated.</p>
+  </details>
+  {% endif %}
+</div>
+
+{% if conferences %}
+  {% for c in conferences %}
+  <section class="odds-conference">
+    <h2>{{ c.label }}</h2>
+    <div class="table-wrap">
+      <table class="league odds-table">
+        <thead>
+          <tr>
+            <th scope="col">Team</th>
+            <th scope="col" class="num">Record</th>
+            <th scope="col" class="num wide-only"><abbr title="Average regular-season wins in the simulations">Wins</abbr></th>
+            <th scope="col" class="num">Division</th>
+            <th scope="col" class="num">Playoffs</th>
+            {% if before_as_of %}<th scope="col" class="num"><abbr title="Change in playoff chance since {{ before_as_of }}">Week</abbr></th>{% endif %}
+            <th scope="col" class="num wide-only">Top seed</th>
+            <th scope="col" class="num">Super Bowl</th>
+            <th scope="col" class="num">Win it all</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in c.rows %}
+          <tr>
+            <th scope="row">{{ nfl_chip(r.team) }}<a class="team-link" href="{{ r.url }}">{{ r.name }}</a></th>
+            <td class="num">{{ r.record }}</td>
+            <td class="num wide-only">{{ r.wins }}</td>
+            {{ pct_cell(r.division) }}
+            {{ pct_cell(r.playoffs, 'odds-main') }}
+            {% if before_as_of %}<td class="num change change-{{ r.change.dir if r.change else '' }}">{{ r.change.text if r.change else '' }}</td>{% endif %}
+            {{ pct_cell(r.top_seed, 'wide-only') }}
+            {{ pct_cell(r.conference) }}
+            {{ pct_cell(r.champion) }}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endfor %}
+  <p class="note">"Week" is the change in playoff chance since {{ before_as_of or 'the last update' }}, in percentage points. Odds are saved to a public file on every update, so their history can be checked too.</p>
+{% else %}
+  <section class="empty">
+    <h2>No playoff odds yet</h2>
+    <p>Run <code>python -m nfl.season</code> to simulate the rest of the season.</p>
+  </section>
+{% endif %}
+{% endblock %}

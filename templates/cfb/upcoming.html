@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% from "cfb/macros.html" import game_card, conference_filter %}
+{% block title %}Upcoming games | College football probabilities{% endblock %}
+{% block content %}
+<div class="intro">
+  <h1>Upcoming games</h1>
+  <p class="lede">The model's chance of each team winning, for every game involving a top-division (FBS) school in the next eight days.</p>
+  <details class="explain">
+    <summary>How to read this</summary>
+    <p>The big numbers are the model's chance of each team winning; the bar shows the same split. The free data has no betting odds for the current season yet, so upcoming games are compared with CollegeFootballData's Elo rating instead. Finished games are compared with the betting market's closing odds where available (2006&ndash;2025). The conference shown next to each team is its conference this season.</p>
+  </details>
+</div>
+{{ conference_filter(conferences, conference, base ~ '/cfb/') }}
+{% if days %}
+  {% for day in days %}
+  <section class="day">
+    <h2>{{ day.label }}</h2>
+    <ul class="matches">{% for g in day.games %}{{ game_card(g) }}{% endfor %}</ul>
+  </section>
+  {% endfor %}
+  <p class="note">Predictions are saved before kickoff and never changed afterwards: see the <a href="{{ base }}/cfb/track-record/">track record</a>.</p>
+{% else %}
+  <section class="empty">
+    <h2>No upcoming games predicted{% if conference %} for the {{ conference }}{% endif %}</h2>
+    <p>Predictions for the next eight days are made on Tuesdays and Fridays. Run <code>python -m cfb.predict_upcoming</code> to make them now.</p>
+    <p><a class="button" href="{{ base }}/cfb/results/">See recent results</a></p>
+  </section>
+{% endif %}
+{% endblock %}

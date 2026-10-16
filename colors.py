@@ -43,6 +43,150 @@ EPL = {
     "Wolves": ("#FDB913", "#231F20"),
 }
 
+# College football: school colors from cfbfastR-data's team list (team name as in its schedules)
+CFB = {
+    'Air Force': ('#004A7B', '#FFFFFF'),
+    'Akron': ('#00285E', '#84754E'),
+    'Alabama': ('#690014', '#F1F2F3'),
+    'Arizona': ('#002449', '#00205B'),
+    'Arizona State': ('#942139', '#F1F2F3'),
+    'Arkansas': ('#9C1831', '#000000'),
+    'Arkansas State': ('#E81018', '#000000'),
+    'Army': ('#CE9C00', '#231F20'),
+    'Auburn': ('#03244D', '#F1F2F3'),
+    'BYU': ('#001E4C', '#FFFFFF'),
+    'Ball State': ('#DA0000', '#FFFFFF'),
+    'Baylor': ('#004834', '#FFB81C'),
+    'Boise State': ('#09347A', '#D8D9DA'),
+    'Boston College': ('#88001A', '#A39161'),
+    'Bowling Green': ('#2B1000', '#492000'),
+    'Buffalo': ('#041A9B', '#EBEBEB'),
+    'California': ('#031522', '#FFC423'),
+    'Central Michigan': ('#6A0032', '#FFFFFF'),
+    'Charlotte': ('#0C562D', '#CFAB7A'),
+    'Cincinnati': ('#000000', '#717073'),
+    'Clemson': ('#F66733', '#522D80'),
+    'Coastal Carolina': ('#007073', '#876447'),
+    'Colorado': ('#D1C57E', '#FFD200'),
+    'Colorado State': ('#004537', '#FFC425'),
+    'Connecticut': ('#001D40', '#F1F2F3'),
+    'Delaware': ('#033594', '#E8CE31'),
+    'Duke': ('#001A57', '#F1F2F3'),
+    'East Carolina': ('#4B1869', '#F0907B'),
+    'Eastern Michigan': ('#00331B', '#F0F0F0'),
+    'Florida': ('#0021A5', '#0021A5'),
+    'Florida Atlantic': ('#004B85', '#BB2F4C'),
+    'Florida International': ('#001538', '#C5960C'),
+    'Florida State': ('#782F40', '#CEB888'),
+    'Fresno State': ('#C41230', '#231F20'),
+    'Georgia': ('#CC0000', '#000000'),
+    'Georgia Southern': ('#003775', '#F0F0F0'),
+    'Georgia State': ('#1E539A', '#EBEBEB'),
+    'Georgia Tech': ('#00223E', '#002C56'),
+    "Hawai'i": ('#003420', '#FFFFFF'),
+    'Houston': ('#C90822', '#231F20'),
+    'Idaho': ('#000000', '#8C6E4A'),
+    'Illinois': ('#F77329', '#FA6300'),
+    'Indiana': ('#7D110C', '#EEEDEB'),
+    'Iowa': ('#000000', '#FFE100'),
+    'Iowa State': ('#660015', '#830B2C'),
+    'Jacksonville State': ('#B50500', '#B5B7BA'),
+    'James Madison': ('#450084', '#CBB778'),
+    'Kansas': ('#0022B4', '#E8000D'),
+    'Kansas State': ('#633194', '#E7D2AD'),
+    'Kennesaw State': ('#000000', '#FDBB30'),
+    'Kent State': ('#002445', '#F0B510'),
+    'Kentucky': ('#005DAA', '#FFFFFF'),
+    'LSU': ('#22005C', '#FDD023'),
+    'Liberty': ('#071740', '#A61F21'),
+    'Louisiana': ('#CE2842', '#7F7F7F'),
+    'Louisiana Monroe': ('#231F20', '#B18445'),
+    'Louisiana Tech': ('#002D65', '#D3313A'),
+    'Louisville': ('#AD000A', '#CCCCCC'),
+    'Marshall': ('#186329', '#BE854C'),
+    'Maryland': ('#D5002B', '#FFCD00'),
+    'Memphis': ('#002447', '#231F20'),
+    'Miami': ('#004325', '#F0F0F0'),
+    'Miami (OH)': ('#A4000C', '#F0F0F0'),
+    'Michigan': ('#00274C', '#FFCB05'),
+    'Michigan State': ('#18453B', '#FFFFFF'),
+    'Middle Tennessee': ('#0079C2', '#C3C5C8'),
+    'Minnesota': ('#7F011B', '#7A0019'),
+    'Mississippi State': ('#762123', '#C8C8C8'),
+    'Missouri': ('#000000', '#000000'),
+    'Missouri State': ('#5F0000', '#E8E8E8'),
+    'NC State': ('#EF1216', '#231F20'),
+    'Navy': ('#131630', '#B6A77C'),
+    'Nebraska': ('#F20017', '#F5F1E7'),
+    'Nevada': ('#153E5F', '#8E9295'),
+    'New Mexico': ('#000000', '#231F20'),
+    'New Mexico State': ('#891216', '#000000'),
+    'North Carolina': ('#99BFE5', '#13294B'),
+    'North Dakota State': ('#01402A', '#FFFFFF'),
+    'North Texas': ('#00853D', '#000000'),
+    'Northern Illinois': ('#F1122C', '#CC0000'),
+    'Northwestern': ('#372286', '#D6CAC1'),
+    'Notre Dame': ('#00122B', '#AE9142'),
+    'Ohio': ('#295A29', '#E4BB85'),
+    'Ohio State': ('#DE3121', '#666666'),
+    'Oklahoma': ('#7B0000', '#CCCCCC'),
+    'Oklahoma State': ('#FF6500', '#FF9900'),
+    'Old Dominion': ('#00507D', '#A1D2F1'),
+    'Ole Miss': ('#001148', '#00205B'),
+    'Oregon': ('#044520', '#FEE123'),
+    'Oregon State': ('#C34500', '#DEA076'),
+    'Penn State': ('#00265D', '#002E5C'),
+    'Pittsburgh': ('#003263', '#231F20'),
+    'Purdue': ('#B89D29', '#A4A9AD'),
+    'Rice': ('#003D7D', '#D1D5D8'),
+    'Rutgers': ('#D21034', '#FFFFFF'),
+    'SMU': ('#E32F38', '#ECDCB9'),
+    'Sacramento State': ('#00573C', '#CDB97D'),
+    'San Diego State': ('#BF2C37', '#A8996E'),
+    'San José State': ('#005893', '#FDBA31'),
+    'South Alabama': ('#003E7E', '#7F7F7F'),
+    'South Carolina': ('#670010', '#000000'),
+    'South Florida': ('#004A36', '#231F20'),
+    'Southern Mississippi': ('#FFAA3C', '#FFC423'),
+    'Stanford': ('#A80532', '#FFFFFF'),
+    'Syracuse': ('#F37321', '#0D1D37'),
+    'TCU': ('#3C377D', '#F1F2F3'),
+    'Temple': ('#A80532', '#A7A9AC'),
+    'Tennessee': ('#EE9627', '#FFFFFF'),
+    'Texas': ('#EE7524', '#F0F0F0'),
+    'Texas A&M': ('#5C0025', '#FFFFFF'),
+    'Texas State': ('#4E1719', '#B4975A'),
+    'Texas Tech': ('#C80025', '#231F20'),
+    'Toledo': ('#00488F', '#FFD51D'),
+    'Troy': ('#AE0210', '#88898C'),
+    'Tulane': ('#005837', '#3BAF29'),
+    'Tulsa': ('#004371', '#EE3B33'),
+    'UAB': ('#003B28', '#FFC845'),
+    'UCF': ('#000000', '#231F20'),
+    'UCLA': ('#005C8E', '#FFC72C'),
+    'UMass': ('#880007', '#7F7F7F'),
+    'UNLV': ('#000000', '#C2C4C6'),
+    'USC': ('#AE2531', '#FFC72C'),
+    'UT San Antonio': ('#002A5C', '#F47321'),
+    'UTEP': ('#002843', '#FF6F12'),
+    'Utah': ('#890012', '#7E8083'),
+    'Utah State': ('#003263', '#949CA1'),
+    'Vanderbilt': ('#000000', '#231F20'),
+    'Virginia': ('#00204E', '#002D62'),
+    'Virginia Tech': ('#74232D', '#C2C1BA'),
+    'Wake Forest': ('#9E7E38', '#000000'),
+    'Washington': ('#2B2F64', '#E8E3D3'),
+    'Washington State': ('#94022A', '#6A747C'),
+    'West Virginia': ('#FFC600', '#EAAA00'),
+    'Western Kentucky': ('#F32026', '#B3B5B8'),
+    'Western Michigan': ('#B59966', '#BFA979'),
+    'Wisconsin': ('#A00001', '#F7F7F7'),
+    'Wyoming': ('#533B22', '#FFFFFF'),
+    'App State': ('#222222', '#FFCC00'), 'Massachusetts': ('#881C1C', '#212721'), 'Sam Houston': ('#F56A00', '#212721'),
+    'Southern Miss': ('#212721', '#FFAB00'), 'UConn': ('#000E2F', '#7C878E'), 'UL Monroe': ('#800029', '#BD955A'),
+    'UTSA': ('#0C2340', '#F15A22'),
+}
+
 DEFAULT_HOME, DEFAULT_AWAY = ("#1D4F91", "#5A6B8C"), ("#D9A21B", "#8C6A12")
 MIN_DIFFERENCE = 40   # color difference (CIE76, Lab) below which two colors read as the same in a bar
 
@@ -90,15 +234,25 @@ def ink(hex_color: str) -> str:
     return "#141b17" if _lab(hex_color)[0] > 62 else "#ffffff"
 
 
+def usable(hex_color: str) -> bool:
+    """Not so close to white that it would vanish on a card."""
+    return _lab(hex_color)[0] < 90
+
+
+def main_color(table: dict, team: str, default: tuple) -> str:
+    colors = table.get(team, default)
+    return next((c for c in colors if usable(c)), default[0])
+
+
 def pair(table: dict, home: str, away: str) -> tuple[str, str]:
     """(home color, away color) for one game, the away team switching to its second color (or the
     default) when the main colors clash."""
-    h = table.get(home, DEFAULT_HOME)
+    h = main_color(table, home, DEFAULT_HOME)
     a = table.get(away, DEFAULT_AWAY)
-    for option in (a[0], a[1], DEFAULT_AWAY[0], DEFAULT_HOME[1]):
-        if difference(h[0], option) >= MIN_DIFFERENCE:
-            return h[0], option
-    return h[0], a[0]
+    for option in (*a, DEFAULT_AWAY[0], DEFAULT_HOME[1]):
+        if usable(option) and difference(h, option) >= MIN_DIFFERENCE:
+            return h, option
+    return h, main_color(table, away, DEFAULT_AWAY)
 
 
 def style(table: dict, home: str, away: str) -> str:
@@ -112,7 +266,7 @@ def style(table: dict, home: str, away: str) -> str:
 
 def team_style(table: dict, team: str) -> str:
     """CSS custom properties for one team's page: its main color as the home color."""
-    c = table.get(team, DEFAULT_HOME)[0]
+    c = main_color(table, team, DEFAULT_HOME)
     d = for_dark(c)
     return f"--hl: {c}; --hl-ink: {ink(c)}; --hd: {d}; --hd-ink: {ink(d)}; --al: {c}; --al-ink: {ink(c)}; --ad: {d}; --ad-ink: {ink(d)};"
 
@@ -120,5 +274,5 @@ def team_style(table: dict, team: str) -> str:
 def chip(table: dict, team: str):
     """A small square in the team's main color (lifted on the dark page), as HTML."""
     from markupsafe import Markup
-    c = table.get(team, DEFAULT_HOME)[0]
+    c = main_color(table, team, DEFAULT_HOME)
     return Markup(f'<span class="chip team-chip" style="--hl: {c}; --hd: {for_dark(c)}" aria-hidden="true"></span>')

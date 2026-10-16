@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "blend.html" import blend_section %}
 {% block title %}Backtest | NFL probabilities{% endblock %}
 
 {% block content %}
@@ -107,6 +108,7 @@
   </div>
   <p class="note">The market stays ahead: it knows which quarterback is starting and how good he is, injuries, weather and professional bettors' views. The current season's numbers rest on few games and swing a lot.</p>
 </section>
+{{ blend_section(blend, 'games', 'python -m nfl.blend') }}
 {% else %}
   <section class="empty">
     <h2>No backtest results yet</h2>
